@@ -1,0 +1,45 @@
+[package]
+name = "distributed"
+version = "0.1.0"
+edition = "2024"
+resolver = "3"
+description = "Distributed System with Rust - 分布式系统"
+authors = ["Rust AI Team"]
+license = "MIT"
+repository = "https://github.com/rust-lang/c20_distributed"
+keywords = ["distributed", "system", "rust"]
+categories = ["distributed", "system", "rust"]
+rust-version = "1.90"
+
+[features]
+default = []
+# 运行时选择（默认不启用，示例/二进制可启用）
+runtime-tokio = ["dep:tokio"]
+# 共识算法选择（库级可选启用）
+consensus-raft = []
+consensus-paxos = []
+# 可观测性（启用 tracing 输出）
+observability = ["dep:tracing", "dep:tracing-subscriber"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, optional = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+ahash = "0.8.12"
+
+[dev-dependencies]
+tokio = { workspace = true }
+criterion = { workspace = true, features = ["cargo_bench_support"] }
+proptest = { workspace = true }
+
+[[bench]]
+name = "ack_distribution_criterion"
+harness = false
+
+[[bench]]
+name = "ack_distribution"
+harness = false
