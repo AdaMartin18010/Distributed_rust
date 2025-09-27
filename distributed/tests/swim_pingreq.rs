@@ -1,4 +1,4 @@
-use c20_distributed::swim::{SwimMemberState, SwimNode, SwimTransport};
+use distributed::swim::{SwimMemberState, SwimNode, SwimTransport};
 use std::time::Duration;
 
 struct StubTransport {
@@ -12,7 +12,7 @@ impl SwimTransport for StubTransport {
     fn ping_req(&self, _relay: &str, _target: &str) -> bool {
         self.indirect_ok
     }
-    fn gossip(&self, _to: &str, _events: &[c20_distributed::swim::SwimEvent]) -> bool {
+    fn gossip(&self, _to: &str, _events: &[distributed::swim::SwimEvent]) -> bool {
         true
     }
 }

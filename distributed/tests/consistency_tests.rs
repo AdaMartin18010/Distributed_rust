@@ -1,4 +1,4 @@
-use c20_distributed::{
+use distributed::{
     CAPStrategy, ConsistencyLevel, MonotonicConsistencyManager, SessionConsistencyManager,
     VectorClock,
 };

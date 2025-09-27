@@ -1,4 +1,4 @@
-use c20_distributed::{
+use distributed::{
     CAPAnalysisReport, CAPAnalyzer, CAPManager, CAPStrategy, ConsistencyDecision, ConsistencyLevel,
     MembershipView, PartitionDetector, PerformanceMetrics, SwimMemberState,
 };

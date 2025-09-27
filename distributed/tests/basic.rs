@@ -1,4 +1,4 @@
-use c20_distributed::*;
+use distributed::*;
 
 #[test]
 fn smoke_exports_exist() {

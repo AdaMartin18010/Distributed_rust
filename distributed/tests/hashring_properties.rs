@@ -1,4 +1,4 @@
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::topology::ConsistentHashRing;
 use std::collections::HashSet;
 
 #[test]

@@ -1,6 +1,6 @@
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::{LocalReplicator, Replicator};
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::{LocalReplicator, Replicator};
+use distributed::topology::ConsistentHashRing;
 
 fn main() {
     let mut ring = ConsistentHashRing::new(8);

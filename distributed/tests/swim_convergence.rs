@@ -1,4 +1,4 @@
-use c20_distributed::swim::{MembershipView, SwimMemberState};
+use distributed::swim::{MembershipView, SwimMemberState};
 
 #[test]
 fn swim_view_converges_on_higher_version() {

@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use c20_distributed::{
+use distributed::{
     ChaosConfig, ChaosInjector, ConfigManager, ConfigValue, FileSource, InMemorySource,
 };
 

@@ -1,5 +1,5 @@
-use c20_distributed::transactions::{Saga, SagaStep};
-//use c20_distributed::storage::{InMemoryIdempotency, IdempotencyStore};
+use distributed::transactions::{Saga, SagaStep};
+//use distributed::storage::{InMemoryIdempotency, IdempotencyStore};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -7,11 +7,11 @@ use std::sync::{
 
 struct Debit(Arc<AtomicUsize>);
 impl SagaStep for Debit {
-    fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn execute(&mut self) -> Result<(), distributed::DistributedError> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
-    fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn compensate(&mut self) -> Result<(), distributed::DistributedError> {
         self.0.fetch_sub(1, Ordering::SeqCst);
         Ok(())
     }
@@ -19,11 +19,11 @@ impl SagaStep for Debit {
 
 struct Credit(Arc<AtomicUsize>);
 impl SagaStep for Credit {
-    fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn execute(&mut self) -> Result<(), distributed::DistributedError> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
-    fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn compensate(&mut self) -> Result<(), distributed::DistributedError> {
         self.0.fetch_sub(1, Ordering::SeqCst);
         Ok(())
     }

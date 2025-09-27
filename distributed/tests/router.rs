@@ -1,5 +1,5 @@
-use c20_distributed::partitioning::HashRingRouter;
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::partitioning::HashRingRouter;
+use distributed::topology::ConsistentHashRing;
 
 #[test]
 fn route_owner_exists() {

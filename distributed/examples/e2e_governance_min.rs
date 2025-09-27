@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use c20_distributed::{
+use distributed::{
     AclRule, Action, CircuitBreaker, CircuitConfig, ConfigManager, ConfigValue, FileSource,
     Governance, InMemorySource, Principal, Resource, TokenBucket,
 };
@@ -141,7 +141,7 @@ fn as_bool(v: &ConfigValue) -> Option<bool> {
 }
 
 fn as_acl_rules(v: &ConfigValue) -> Option<Vec<AclRule>> {
-    use c20_distributed::{Action, Principal, Resource};
+    use distributed::{Action, Principal, Resource};
     match v {
         ConfigValue::Array(arr) => {
             let mut out = Vec::new();

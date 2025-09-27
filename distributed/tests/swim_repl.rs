@@ -1,4 +1,4 @@
-use c20_distributed::*;
+use distributed::*;
 use std::time::Duration;
 
 struct DummyPing;

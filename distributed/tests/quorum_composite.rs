@@ -1,5 +1,5 @@
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::{CompositeQuorum, MajorityRead, MajorityWrite};
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::{CompositeQuorum, MajorityRead, MajorityWrite};
 
 #[test]
 fn composite_quorum_read_write_requirements() {

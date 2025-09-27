@@ -1,5 +1,5 @@
-use c20_distributed::storage::{IdempotencyStore, InMemoryIdempotency};
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::storage::{IdempotencyStore, InMemoryIdempotency};
+use distributed::topology::ConsistentHashRing;
 
 #[test]
 fn nodes_for_returns_distinct_nodes() {

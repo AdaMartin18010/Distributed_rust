@@ -1,4 +1,4 @@
-use c20_distributed::{
+use distributed::{
     ByzantineMessage, ByzantineNetwork, CAPManager, CAPStrategy, ConsistencyLevel, MembershipView,
     MonotonicConsistencyManager, PBFTNode, SessionConsistencyManager, SwimMemberState, VectorClock,
 };

@@ -1,4 +1,4 @@
-use c20_distributed::{
+use distributed::{
     ByzantineMessage, ByzantineNetwork, ByzantineNetworkStats, ByzantineNodeState, PBFTNode,
     PreparedCertificate, ViewChangeCertificate,
 };

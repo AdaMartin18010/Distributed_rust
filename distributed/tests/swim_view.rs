@@ -1,4 +1,4 @@
-use c20_distributed::swim::{MembershipView, SwimMemberState};
+use distributed::swim::{MembershipView, SwimMemberState};
 
 #[test]
 fn view_merge_prefers_newer_version() {

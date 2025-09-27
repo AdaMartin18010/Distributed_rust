@@ -1,10 +1,10 @@
 //! 服务发现模块测试
 
-use c20_distributed::{
+use distributed::{
     ConfigServiceDiscovery, DiscoveryStrategy, DnsServiceDiscovery,
     RegistryServiceDiscovery, ServiceDiscoveryConfig, ServiceDiscoveryManager, ServiceInstance,
 };
-use c20_distributed::service_discovery::HealthChecker;
+use distributed::service_discovery::HealthChecker;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;

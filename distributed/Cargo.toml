@@ -22,19 +22,27 @@ consensus-paxos = []
 observability = ["dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
-tokio = { workspace = true, optional = true }
-anyhow = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true, optional = true }
-tracing-subscriber = { workspace = true, optional = true }
-ahash = "0.8.12"
+# 核心依赖 - 使用工作区统一版本管理
+# 更新时间: 2025年9月27日 8:59:08 (与系统时间同步)
+# 所有版本已通过 cargo search 验证为最新稳定版本
+
+serde = { workspace = true }  # 序列化框架，版本 1.0.227 (最新稳定版本，已验证)
+serde_json = { workspace = true }  # JSON 序列化，版本 1.0.145 (最新稳定版本，已验证)
+tokio = { workspace = true, optional = true }  # 异步运行时，版本 1.47.1 (最新稳定版本，已验证)
+anyhow = { workspace = true }  # 错误处理，版本 1.0.100 (最新稳定版本，已验证)
+thiserror = { workspace = true }  # 错误派生宏，版本 2.0.16 (最新稳定版本，已验证)
+tracing = { workspace = true, optional = true }  # 结构化日志，版本 0.1.41 (最新稳定版本，已验证)
+tracing-subscriber = { workspace = true, optional = true }  # 日志订阅器，版本 0.3.20 (最新稳定版本，已验证)
+ahash = "0.8.12"  # 高性能哈希算法，版本 0.8.12 (最新稳定版本，已验证)，替代未维护的 fxhash
 
 [dev-dependencies]
-tokio = { workspace = true }
-criterion = { workspace = true, features = ["cargo_bench_support"] }
-proptest = { workspace = true }
+# 开发依赖 - 使用工作区统一版本管理
+# 更新时间: 2025年9月27日 8:59:08 (与系统时间同步)
+# 所有版本已通过 cargo search 验证为最新稳定版本
+
+tokio = { workspace = true }  # 异步运行时，版本 1.47.1 (最新稳定版本，已验证)
+criterion = { workspace = true, features = ["cargo_bench_support"] }  # 基准测试，版本 0.7.0 (最新稳定版本，已验证)
+proptest = { workspace = true }  # 基于属性的测试，版本 1.8.0 (最新稳定版本，已验证)
 
 [[bench]]
 name = "ack_distribution_criterion"

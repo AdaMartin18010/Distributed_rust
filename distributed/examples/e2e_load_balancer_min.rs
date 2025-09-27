@@ -1,7 +1,7 @@
 use std::thread;
 use std::time::Duration;
 
-use c20_distributed::{
+use distributed::{
     ConfigManager, DiscoveryStrategy, FileSource, InMemorySource, LoadBalancerManager,
     LoadBalancingStrategy, ServiceDiscoveryConfig, ServiceDiscoveryManager,
 };
@@ -38,7 +38,7 @@ fn main() {
     // 订阅策略热更新（外部修改 app.json → 切换策略）
     cfg.subscribe(|snap| {
         let s = snap.values.get("lb.strategy").and_then(|v| match v {
-            c20_distributed::ConfigValue::String(x) => Some(x.as_str()),
+            distributed::ConfigValue::String(x) => Some(x.as_str()),
             _ => None,
         });
         println!("[lb] strategy -> {:?}", s);

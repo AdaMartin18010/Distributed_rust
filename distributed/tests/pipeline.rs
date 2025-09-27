@@ -1,7 +1,7 @@
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::LocalReplicator;
-use c20_distributed::storage::InMemoryIdempotency;
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::LocalReplicator;
+use distributed::storage::InMemoryIdempotency;
+use distributed::topology::ConsistentHashRing;
 
 #[test]
 fn pipeline_majority_with_idempotency() {

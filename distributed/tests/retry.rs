@@ -1,4 +1,4 @@
-use c20_distributed::transport::{
+use distributed::transport::{
     InMemoryRpcClient, InMemoryRpcServer, RetryClient, RetryPolicy, RpcClient, RpcServer,
 };
 

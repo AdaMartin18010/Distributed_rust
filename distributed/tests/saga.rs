@@ -1,4 +1,4 @@
-use c20_distributed::transactions::{Saga, SagaStep};
+use distributed::transactions::{Saga, SagaStep};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -6,23 +6,23 @@ use std::sync::{
 
 struct OkStep(Arc<AtomicUsize>);
 impl SagaStep for OkStep {
-    fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn execute(&mut self) -> Result<(), distributed::DistributedError> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
-    fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn compensate(&mut self) -> Result<(), distributed::DistributedError> {
         Ok(())
     }
 }
 
 struct FailStep(Arc<AtomicUsize>);
 impl SagaStep for FailStep {
-    fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> {
-        Err(c20_distributed::DistributedError::Configuration(
+    fn execute(&mut self) -> Result<(), distributed::DistributedError> {
+        Err(distributed::DistributedError::Configuration(
             "fail".into(),
         ))
     }
-    fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> {
+    fn compensate(&mut self) -> Result<(), distributed::DistributedError> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }

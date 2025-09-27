@@ -1,4 +1,4 @@
-use c20_distributed::{
+use distributed::{
     EnhancedSwimTransport, MembershipView, SwimEvent, SwimMemberState, SwimNode, SwimTransport,
 };
 use std::time::Duration;

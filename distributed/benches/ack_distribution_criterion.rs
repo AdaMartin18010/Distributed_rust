@@ -1,6 +1,6 @@
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::MajorityQuorum;
-use c20_distributed::replication::QuorumPolicy;
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::MajorityQuorum;
+use distributed::replication::QuorumPolicy;
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 

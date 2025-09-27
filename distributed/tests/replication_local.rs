@@ -1,11 +1,11 @@
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::{
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::{
     LocalReplicator,
     MajorityQuorum,
     //Replicator,
     QuorumPolicy,
 };
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::topology::ConsistentHashRing;
 
 fn build(nodes: &[&str]) -> (LocalReplicator<u64>, Vec<String>) {
     let mut ring = ConsistentHashRing::new(8);

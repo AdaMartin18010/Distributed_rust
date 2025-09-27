@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use c20_distributed::{
+use distributed::{
     AclRule, Action, ChaosConfig, ChaosInjector, CircuitBreaker, CircuitConfig, ConfigManager,
     DiscoveryStrategy, FileSource, Governance, InMemorySource, LoadBalancerManager,
     LoadBalancingStrategy, Principal, Resource, ServiceDiscoveryConfig, ServiceDiscoveryManager,
@@ -87,7 +87,7 @@ fn main() {
     let gov_clone = gov.clone();
     cfg_mgr.subscribe(move |snap| {
         let strategy_key = snap.values.get("lb.strategy").and_then(|v| match v {
-            c20_distributed::ConfigValue::String(s) => Some(s.as_str()),
+            distributed::ConfigValue::String(s) => Some(s.as_str()),
             _ => None,
         });
         let new_strategy = resolve_lb_strategy(strategy_key);
@@ -308,35 +308,35 @@ fn resolve_lb_strategy(s: Option<&str>) -> LoadBalancingStrategy {
     }
 }
 
-fn as_u64(v: &c20_distributed::ConfigValue) -> Option<u64> {
+fn as_u64(v: &distributed::ConfigValue) -> Option<u64> {
     match v {
-        c20_distributed::ConfigValue::Integer(i) => Some(*i as u64),
-        c20_distributed::ConfigValue::Float(f) => Some(*f as u64),
+        distributed::ConfigValue::Integer(i) => Some(*i as u64),
+        distributed::ConfigValue::Float(f) => Some(*f as u64),
         _ => None,
     }
 }
 
-fn as_f64(v: &c20_distributed::ConfigValue) -> Option<f64> {
+fn as_f64(v: &distributed::ConfigValue) -> Option<f64> {
     match v {
-        c20_distributed::ConfigValue::Float(f) => Some(*f),
-        c20_distributed::ConfigValue::Integer(i) => Some(*i as f64),
+        distributed::ConfigValue::Float(f) => Some(*f),
+        distributed::ConfigValue::Integer(i) => Some(*i as f64),
         _ => None,
     }
 }
 
-fn as_bool(v: &c20_distributed::ConfigValue) -> Option<bool> {
+fn as_bool(v: &distributed::ConfigValue) -> Option<bool> {
     match v {
-        c20_distributed::ConfigValue::Boolean(b) => Some(*b),
+        distributed::ConfigValue::Boolean(b) => Some(*b),
         _ => None,
     }
 }
 
-fn as_string_vec(v: &c20_distributed::ConfigValue) -> Option<Vec<String>> {
+fn as_string_vec(v: &distributed::ConfigValue) -> Option<Vec<String>> {
     match v {
-        c20_distributed::ConfigValue::Array(arr) => {
+        distributed::ConfigValue::Array(arr) => {
             let mut out = Vec::new();
             for e in arr {
-                if let c20_distributed::ConfigValue::String(s) = e {
+                if let distributed::ConfigValue::String(s) = e {
                     out.push(s.clone());
                 }
             }

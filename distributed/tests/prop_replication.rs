@@ -1,6 +1,6 @@
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::{LocalReplicator, MajorityQuorum, QuorumPolicy};
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::{LocalReplicator, MajorityQuorum, QuorumPolicy};
+use distributed::topology::ConsistentHashRing;
 use proptest::prelude::*;
 
 proptest! {

@@ -1,4 +1,4 @@
-use c20_distributed::swim::{
+use distributed::swim::{
     MemberInfo, MembershipView, SwimMemberState, SwimNode, SwimTransport, Version,
 };
 use proptest::prelude::*;
@@ -13,7 +13,7 @@ impl SwimTransport for MockTrans {
     fn ping(&self, to: &str) -> bool {
         *self.reachable.get(to).unwrap_or(&true)
     }
-    fn gossip(&self, _to: &str, _events: &[c20_distributed::swim::SwimEvent]) -> bool {
+    fn gossip(&self, _to: &str, _events: &[distributed::swim::SwimEvent]) -> bool {
         true
     }
 }
