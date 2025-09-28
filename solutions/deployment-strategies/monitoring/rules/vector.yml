@@ -1,0 +1,81 @@
+# Vector 服务告警规则
+
+groups:
+  - name: vector.rules
+    rules:
+      # Vector Edge 服务不可用
+      - alert: VectorEdgeDown
+        expr: up{job="vector-edge"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: vector-edge
+        annotations:
+          summary: "Vector Edge 服务不可用"
+          description: "Vector Edge 服务已停止响应超过 1 分钟"
+
+      # Vector Aggregator 服务不可用
+      - alert: VectorAggregatorDown
+        expr: up{job="vector-aggregator"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: vector-aggregator
+        annotations:
+          summary: "Vector Aggregator 服务不可用"
+          description: "Vector Aggregator 服务已停止响应超过 1 分钟"
+
+      # Vector 事件处理延迟
+      - alert: VectorHighProcessingLatency
+        expr: histogram_quantile(0.95, rate(vector_events_processed_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: vector
+        annotations:
+          summary: "Vector 事件处理延迟过高"
+          description: "Vector 95% 事件处理延迟超过 1 秒"
+
+      # Vector 事件积压
+      - alert: VectorEventBacklog
+        expr: vector_events_processed_total - vector_events_sent_total > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: vector
+        annotations:
+          summary: "Vector 事件积压过多"
+          description: "Vector 事件积压超过 1000 个"
+
+      # Vector 错误率
+      - alert: VectorHighErrorRate
+        expr: rate(vector_events_failed_total[5m]) / rate(vector_events_processed_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          service: vector
+        annotations:
+          summary: "Vector 错误率过高"
+          description: "Vector 事件处理错误率超过 1%"
+
+      # Vector 内存使用
+      - alert: VectorHighMemoryUsage
+        expr: (process_resident_memory_bytes{job=~"vector-.*"} / 1024 / 1024 / 1024) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: vector
+        annotations:
+          summary: "Vector 内存使用过高"
+          description: "Vector 内存使用超过 1GB"
+
+      # Vector 磁盘使用
+      - alert: VectorHighDiskUsage
+        expr: vector_disk_usage_bytes / 1024 / 1024 / 1024 > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: vector
+        annotations:
+          summary: "Vector 磁盘使用过高"
+          description: "Vector 磁盘使用超过 5GB"

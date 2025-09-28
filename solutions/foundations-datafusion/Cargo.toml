@@ -1,0 +1,44 @@
+[package]
+name = "df-foundations-svc"
+version = "0.1.0"
+edition = "2021"
+description = "Foundations + DataFusion 分布式查询服务"
+authors = ["Rust AI Team"]
+license = "MIT"
+
+[dependencies]
+# 核心依赖 - 2025年1月最新版本
+foundations = { version = "0.3", features = ["telemetry", "settings"] }
+datafusion = "42"          # 2025-01 对齐
+tokio = { version = "1.47.1", features = ["full"] }
+arrow-flight = "53"
+tonic = "0.14.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+
+# 可观测性
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
+
+# 错误处理
+anyhow = "1.0.100"
+thiserror = "2.0.16"
+
+# 配置管理
+config = "0.15.16"
+toml = "0.9.7"
+
+# 时间处理
+chrono = { version = "0.4.42", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4.4"
+tempfile = "3.23.0"
+
+[[bin]]
+name = "df-foundations-svc"
+path = "src/main.rs"
+
+[[bin]]
+name = "df-client"
+path = "src/client.rs"

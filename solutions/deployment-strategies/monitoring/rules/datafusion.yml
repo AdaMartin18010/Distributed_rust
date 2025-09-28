@@ -1,0 +1,70 @@
+# DataFusion 服务告警规则
+
+groups:
+  - name: datafusion.rules
+    rules:
+      # 服务可用性告警
+      - alert: DataFusionServiceDown
+        expr: up{job="datafusion"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: datafusion
+        annotations:
+          summary: "DataFusion 服务不可用"
+          description: "DataFusion 服务已停止响应超过 1 分钟"
+
+      # 查询延迟告警
+      - alert: DataFusionHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="datafusion"}[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: datafusion
+        annotations:
+          summary: "DataFusion 查询延迟过高"
+          description: "DataFusion 95% 查询延迟超过 5 秒"
+
+      # 错误率告警
+      - alert: DataFusionHighErrorRate
+        expr: rate(http_requests_total{job="datafusion",status=~"5.."}[5m]) / rate(http_requests_total{job="datafusion"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: datafusion
+        annotations:
+          summary: "DataFusion 错误率过高"
+          description: "DataFusion 5xx 错误率超过 5%"
+
+      # 连接数告警
+      - alert: DataFusionHighConnections
+        expr: datafusion_active_connections > 80
+        for: 1m
+        labels:
+          severity: warning
+          service: datafusion
+        annotations:
+          summary: "DataFusion 连接数过高"
+          description: "DataFusion 活跃连接数超过 80"
+
+      # 内存使用告警
+      - alert: DataFusionHighMemoryUsage
+        expr: (process_resident_memory_bytes{job="datafusion"} / 1024 / 1024 / 1024) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: datafusion
+        annotations:
+          summary: "DataFusion 内存使用过高"
+          description: "DataFusion 内存使用超过 2GB"
+
+      # CPU 使用告警
+      - alert: DataFusionHighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="datafusion"}[5m]) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: datafusion
+        annotations:
+          summary: "DataFusion CPU 使用过高"
+          description: "DataFusion CPU 使用率超过 80%"

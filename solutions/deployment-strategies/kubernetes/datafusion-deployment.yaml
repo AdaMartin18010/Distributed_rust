@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datafusion
+  namespace: datafusion
+  labels:
+    app: datafusion
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: datafusion
+  template:
+    metadata:
+      labels:
+        app: datafusion
+        version: v1
+    spec:
+      containers:
+      - name: datafusion
+        image: datafusion:latest
+        ports:
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SERVER_ADDRESS
+          value: "0.0.0.0:50051"
+        - name: DATA_PATH
+          value: "/app/data"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: MAX_CONNECTIONS
+          value: "100"
+        - name: QUERY_TIMEOUT_SECONDS
+          value: "300"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: config-volume
+          mountPath: /app/config
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: datafusion-pvc
+      - name: config-volume
+        configMap:
+          name: datafusion-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datafusion-service
+  namespace: datafusion
+spec:
+  selector:
+    app: datafusion
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+  - name: http
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: datafusion-pvc
+  namespace: datafusion
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datafusion-config
+  namespace: datafusion
+data:
+  config.toml: |
+    [server]
+    address = "0.0.0.0:50051"
+    max_connections = 100
+    query_timeout_seconds = 300
+    
+    [data]
+    path = "/app/data"
+    
+    [logging]
+    level = "info"
+    format = "json"

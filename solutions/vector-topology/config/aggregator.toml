@@ -1,0 +1,99 @@
+# Vector Aggregator 配置 - 聚合节点
+# 用于从 NATS 接收日志并进行聚合处理
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[log]
+level = "info"
+format = "json"
+
+# 数据源 - NATS
+[sources.nats_logs]
+type = "nats"
+url = "nats://nats.vector.svc:4222"
+subject = "vector.logs"
+queue = "vector-aggregator"
+[sources.nats_logs.encoding]
+codec = "json"
+
+# 数据转换 - 过滤和清理
+[transforms.filter_logs]
+type = "filter"
+inputs = ["nats_logs"]
+condition = '''
+# 过滤掉调试日志
+.level != "debug" && 
+# 确保必要字段存在
+exists(.timestamp) && exists(.node_id)
+'''
+
+# 数据转换 - 时间窗口聚合
+[transforms.window_agg]
+type = "aggregate"
+inputs = ["filter_logs"]
+window = 30
+interval = 30
+group_by = ["level", "service", "node_id"]
+
+[transforms.window_agg.reductions]
+count = "count"
+error_count = "count_if(.level == 'error')"
+warn_count = "count_if(.level == 'warn')"
+info_count = "count_if(.level == 'info')"
+
+# 数据转换 - 添加聚合元数据
+[transforms.add_agg_metadata]
+type = "remap"
+inputs = ["window_agg"]
+source = '''
+# 添加聚合信息
+.aggregator_id = get_env_var!("AGGREGATOR_ID") ?? "unknown"
+.aggregation_timestamp = now()
+.aggregation_window = 30
+'''
+
+# 数据转换 - 采样
+[transforms.sample_logs]
+type = "sample"
+inputs = ["add_agg_metadata"]
+rate = 0.1  # 10% 采样率
+key_field = "node_id"
+
+# 数据输出 - ClickHouse
+[sinks.clickhouse]
+type = "clickhouse"
+inputs = ["sample_logs"]
+endpoint = "http://clickhouse.monitoring.svc:8123"
+database = "logs"
+table = "vector_logs_distributed"
+compression = "gzip"
+
+[sinks.clickhouse.buffer]
+type = "disk"
+max_size = 104857600  # 100MB
+when_full = "block"
+
+[sinks.clickhouse.batch]
+max_bytes = 1048576    # 1MB
+timeout_secs = 5
+
+# 数据输出 - Prometheus 指标
+[sinks.prometheus_metrics]
+type = "prometheus_exporter"
+inputs = ["add_agg_metadata"]
+address = "0.0.0.0:9598"
+
+# 数据输出 - 本地文件（备份）
+[sinks.local_backup]
+type = "file"
+inputs = ["sample_logs"]
+path = "/var/log/vector/aggregated.log"
+
+[sinks.local_backup.encoding]
+codec = "json"
+
+[sinks.local_backup.buffer]
+type = "disk"
+max_size = 10485760  # 10MB

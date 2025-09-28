@@ -1,0 +1,29 @@
+# Grafana 数据源配置
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      queryTimeout: 60s
+      timeInterval: 15s
+
+  - name: ClickHouse
+    type: clickhouse
+    access: proxy
+    url: http://clickhouse:8123
+    database: logs
+    user: default
+    secureJsonData:
+      password: ""
+    jsonData:
+      defaultDatabase: logs
+      port: 8123
+      server: clickhouse
+      username: default

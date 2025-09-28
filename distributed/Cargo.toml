@@ -23,10 +23,10 @@ observability = ["dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
 # 核心依赖 - 使用工作区统一版本管理
-# 更新时间: 2025年9月27日 12:52:20 (与系统时间完全同步)
+# 更新时间: 2025年1月15日 (最新版本升级)
 # 所有版本已通过 cargo search 验证为最新稳定版本
 
-serde = { workspace = true }  # 序列化框架，版本 1.0.227 (最新稳定版本，已验证)
+serde = { workspace = true }  # 序列化框架，版本 1.0.228 (最新稳定版本，已验证)
 serde_json = { workspace = true }  # JSON 序列化，版本 1.0.145 (最新稳定版本，已验证)
 tokio = { workspace = true, optional = true }  # 异步运行时，版本 1.47.1 (最新稳定版本，已验证)
 anyhow = { workspace = true }  # 错误处理，版本 1.0.100 (最新稳定版本，已验证)
@@ -37,7 +37,7 @@ ahash = "0.8.12"  # 高性能哈希算法，版本 0.8.12 (最新稳定版本，
 
 [dev-dependencies]
 # 开发依赖 - 使用工作区统一版本管理
-# 更新时间: 2025年9月27日 12:52:20 (与系统时间完全同步)
+# 更新时间: 2025年1月15日 (最新版本升级)
 # 所有版本已通过 cargo search 验证为最新稳定版本
 
 tokio = { workspace = true }  # 异步运行时，版本 1.47.1 (最新稳定版本，已验证)

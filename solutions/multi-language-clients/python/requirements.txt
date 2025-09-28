@@ -1,0 +1,4 @@
+# Python 客户端依赖
+pyarrow>=15.0.0
+pandas>=2.0.0
+grpcio>=1.60.0

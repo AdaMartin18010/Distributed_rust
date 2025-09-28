@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # DataFusion 服务
+  datafusion:
+    build:
+      context: ../foundations-datafusion
+      dockerfile: ../deployment-strategies/docker/Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      - SERVER_ADDRESS=0.0.0.0:50051
+      - DATA_PATH=/app/data
+      - LOG_LEVEL=info
+      - MAX_CONNECTIONS=100
+      - QUERY_TIMEOUT_SECONDS=300
+    volumes:
+      - datafusion_data:/app/data
+      - ./config:/app/config:ro
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:50051/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # NATS 消息队列
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["-js", "-m", "8222"]
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+
+  # ClickHouse 数据库
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_DB=logs
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+
+  # Vector Edge 节点
+  vector-edge:
+    image: timberio/vector:0.44-alpine
+    volumes:
+      - ../vector-topology/config/edge.toml:/etc/vector/vector.toml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    environment:
+      - NODE_ID=edge-1
+      - RUST_LOG=info
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+    depends_on:
+      - nats
+
+  # Vector Aggregator 节点
+  vector-aggregator:
+    image: timberio/vector:0.44-alpine
+    volumes:
+      - ../vector-topology/config/aggregator.toml:/etc/vector/vector.toml:ro
+    environment:
+      - AGGREGATOR_ID=agg-1
+      - RUST_LOG=info
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+    depends_on:
+      - nats
+      - clickhouse
+
+  # Prometheus 监控
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+
+  # Grafana 可视化
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - datafusion-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  datafusion_data:
+  clickhouse_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  datafusion-network:
+    driver: bridge

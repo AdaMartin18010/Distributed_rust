@@ -1,0 +1,104 @@
+# Vector Edge 配置 - 边缘节点
+# 用于收集本地日志并发送到 NATS
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[log]
+level = "info"
+format = "json"
+
+# 数据源 - Kubernetes 日志
+[sources.k8s_logs]
+type = "kubernetes_logs"
+
+# 数据源 - 系统日志
+[sources.syslog]
+type = "syslog"
+mode = "tcp"
+address = "0.0.0.0:514"
+max_length = 1024
+
+# 数据源 - 文件日志
+[sources.file_logs]
+type = "file"
+include = ["/var/log/app/*.log"]
+read_from = "beginning"
+
+[sources.file_logs.multiline]
+start_pattern = "^\\d{4}-\\d{2}-\\d{2}"
+mode = "halt_before"
+condition_pattern = "^\\d{4}-\\d{2}-\\d{2}"
+timeout_ms = 1000
+
+# 数据转换 - JSON 解析
+[transforms.parse_json]
+type = "remap"
+inputs = ["k8s_logs", "file_logs"]
+source = '''
+# 解析 JSON 格式的日志
+if is_string(.message) {
+  parsed = parse_json!(.message)
+  if is_object(parsed) {
+    . = merge(., parsed)
+  }
+}
+'''
+
+# 数据转换 - 添加元数据
+[transforms.add_metadata]
+type = "remap"
+inputs = ["parse_json"]
+source = '''
+# 添加节点信息
+.node_id = get_env_var!("NODE_ID") ?? "unknown"
+.timestamp = now()
+.service = "vector-edge"
+'''
+
+# 数据转换 - 路由
+[transforms.route_logs]
+type = "remap"
+inputs = ["add_metadata"]
+source = '''
+# 根据日志级别路由
+if exists(.level) {
+  if .level == "error" {
+    .route = "error"
+  } else if .level == "warn" {
+    .route = "warning"
+  } else {
+    .route = "info"
+  }
+} else {
+  .route = "default"
+}
+'''
+
+# 数据输出 - NATS
+[sinks.nats_logs]
+type = "nats"
+inputs = ["route_logs"]
+url = "nats://nats.vector.svc:4222"
+subject = "vector.logs"
+[sinks.nats_logs.encoding]
+codec = "json"
+
+[sinks.nats_logs.buffer]
+type = "memory"
+max_events = 1000
+when_full = "block"
+
+# 数据输出 - 本地文件（调试用）
+[sinks.local_debug]
+type = "file"
+inputs = ["route_logs"]
+path = "/var/log/vector/debug.log"
+
+[sinks.local_debug.encoding]
+codec = "json"
+
+[sinks.local_debug.buffer]
+type = "memory"
+max_events = 100
