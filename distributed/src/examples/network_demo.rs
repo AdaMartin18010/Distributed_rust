@@ -106,7 +106,7 @@ pub fn retry_mechanism_demo() -> Result<(), Box<dyn std::error::Error>> {
         
         // 前两次调用失败，第三次成功
         if count < 3 {
-            panic!("模拟服务失败");
+            return "error: service simulation failed".to_string().into_bytes();
         }
         
         format!("成功响应 (第{}次调用)", count).into_bytes()

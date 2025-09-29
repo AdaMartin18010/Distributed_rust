@@ -186,7 +186,7 @@ pub fn benchmark_retry_mechanism() -> Result<(), Box<dyn std::error::Error>> {
     server.register("unstable", Box::new(move |_payload| {
         let count = call_count_clone.fetch_add(1, Ordering::SeqCst);
         if count % 2 == 0 {
-            panic!("模拟失败");
+            return "error: simulation failed".to_string().into_bytes();
         }
         b"success".to_vec()
     }));

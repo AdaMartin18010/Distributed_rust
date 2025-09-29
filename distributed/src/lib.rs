@@ -15,10 +15,12 @@
 //! ## 快速开始
 //!
 //! ```rust
-//! use c20_distributed::core::DistributedConfig;
-//! use c20_distributed::network::DistributedMutex;
+//! use distributed::core::DistributedConfig;
+//! use distributed::topology::ConsistentHashRing;
 //! 
 //! let config = DistributedConfig::default();
+//! let mut ring = ConsistentHashRing::new(8);
+//! ring.add_node("node1");
 //! // 使用分布式系统组件...
 //! ```
 

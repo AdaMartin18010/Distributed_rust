@@ -1,6 +1,12 @@
-# c20_distributed — 分布式系统（Rust 1.89 对齐）
+# Distributed Rust Core 🦀
 
-本 crate 聚焦分布式系统核心：成员管理、拓扑与分片、复制与一致性、共识抽象、事务与补偿、SWIM 故障检测与反熵、调度与逻辑时钟、存储与幂等。
+[![Rust](https://img.shields.io/badge/rust-1.90+-orange.svg)](https://www.rust-lang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://docs.rs/distributed/badge.svg)](https://docs.rs/distributed)
+
+> 🚀 **分布式系统核心库** - 基于 Rust 1.90 的现代化分布式系统基础设施
+
+本 crate 提供分布式系统的核心组件：成员管理、拓扑与分片、复制与一致性、共识算法、事务与补偿、SWIM 故障检测、调度与逻辑时钟、存储与幂等性保证。
 
 ## 快速导航
 
@@ -47,21 +53,86 @@
 - `cargo run -p c20_distributed --features observability --example e2e_discovery_lb_config`
 - 设置级别：`RUST_LOG=info` 或 `RUST_LOG=debug`
 
-## Quickstart（3分钟上手）
+## 🚀 快速开始
 
-1) 准备 `app.json`（复制下文示例到项目根目录）：
-   - 至少包含：`lb.strategy`、`rl.client.*`、`cb.user_service.*`、`chaos.*`、`acl.rules`（可选）
+### 基础示例
 
-2) 运行最小示例，分别验证三类能力：
-   - 治理热更新：`cargo run -p c20_distributed --example e2e_governance_min`
-   - 混沌注入：`cargo run -p c20_distributed --example e2e_chaos_min`
-   - 负载均衡切换：`cargo run -p c20_distributed --example e2e_load_balancer_min`
+```rust
+use distributed::{
+    ConsistentHashRing, LocalReplicator, ConsistencyLevel,
+    DistributedConfig, RaftNode, Term, LogIndex
+};
 
-3) 联动示例（服务发现+负载均衡+动态配置）：
-   - 基础：`cargo run -p c20_distributed --example e2e_discovery_lb_config`
-   - 启用日志：`RUST_LOG=info cargo run -p c20_distributed --features observability --example e2e_discovery_lb_config`
+// 1. 创建一致性哈希环
+let mut ring = ConsistentHashRing::new(8);
+ring.add_node("node1");
+ring.add_node("node2");
+ring.add_node("node3");
 
-4) 修改 `app.json` 并保存，观察控制台输出变化（限流/熔断/混沌/策略切换均可热更新）。
+// 2. 创建复制器
+let nodes = vec!["node1".to_string(), "node2".to_string(), "node3".to_string()];
+let mut replicator = LocalReplicator::new(ring, nodes);
+
+// 3. 执行复制操作
+let result = replicator.replicate(42u64, ConsistencyLevel::Quorum);
+println!("复制结果: {:?}", result);
+```
+
+### 运行示例
+
+```bash
+# 运行 Raft 共识演示
+cargo run -p distributed --example raft_demo
+
+# 运行分布式复制示例
+cargo run -p distributed --example e2e_replication
+
+# 运行 Saga 事务示例
+cargo run -p distributed --example e2e_saga
+
+# 运行负载均衡示例
+cargo run -p distributed --example e2e_load_balancer_min
+```
+
+### 配置驱动示例
+
+1) 准备 `app.json` 配置文件：
+
+    ```json
+    {
+      "lb.strategy": "weighted_rr",
+      "rl.client.capacity": 100,
+      "rl.client.refill_per_sec": 100,
+      "cb.user_service.error_threshold": 5,
+      "cb.user_service.open_ms": 1000,
+      "chaos.latency_ms": 0,
+      "chaos.jitter_ms": 0,
+      "chaos.drop_rate": 0.0,
+      "chaos.partition_enabled": false,
+      "chaos.partition_peers": [],
+      "acl.rules": [
+        { "principal": "service:client", "resource": "user-service", "action": "read", "allow": true }
+      ]
+    }
+    ```
+
+2) 运行配置驱动示例：
+
+    ```bash
+    # 服务发现 + 负载均衡 + 动态配置
+    cargo run -p distributed --example e2e_discovery_lb_config
+
+    # 启用详细日志
+    RUST_LOG=info cargo run -p distributed --features observability --example e2e_discovery_lb_config
+
+    # 治理热更新示例
+    cargo run -p distributed --example e2e_governance_min
+
+    # 混沌注入示例
+    cargo run -p distributed --example e2e_chaos_min
+    ```
+
+3) 修改 `app.json` 并保存，观察控制台输出变化（限流/熔断/混沌/策略切换均可热更新）。
 
 ## 参考输出（Expected Logs）
 

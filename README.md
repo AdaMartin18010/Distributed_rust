@@ -1,15 +1,168 @@
-# Distributed_rust
+# Distributed Rust 🦀
 
-Rust 分布式系统设计与实践（2025-09 对齐版本）。
+[![Rust](https://img.shields.io/badge/rust-1.90+-orange.svg)](https://www.rust-lang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://github.com/your-org/distributed-rust/workflows/CI/badge.svg)](https://github.com/your-org/distributed-rust/actions)
+[![Coverage](https://codecov.io/gh/your-org/distributed-rust/branch/main/graph/badge.svg)](https://codecov.io/gh/your-org/distributed-rust)
 
-## 目录
+> 🚀 **现代化的分布式系统教学与实践项目** - 通过 Rust 语言展示分布式系统的核心概念、算法实现和工程实践
 
-- 概览与选型速览
-- 分布式计算生态（运行时 / ETL / 查询引擎 / 流处理）
-- Foundations + DataFusion：从单机到分布式微服务
-- Vector：分布式可观测性拓扑与配置示例
-- 端到端参考栈
-- 版本矩阵（2025-09 实测）
+## ✨ 项目特色
+
+- **🎓 教学导向**: 完整的分布式系统概念覆盖，适合学习和研究
+- **🦀 Rust 原生**: 利用 Rust 的安全性和性能优势构建分布式系统
+- **🔧 生产就绪**: 提供可部署的解决方案和最佳实践
+- **📊 可观测性**: 内置监控、日志和追踪能力
+- **🧪 测试完备**: 单元测试、集成测试、混沌测试全覆盖
+
+## 🚀 快速开始
+
+### 安装依赖
+
+```bash
+# 安装 Rust (如果未安装)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 克隆项目
+git clone https://github.com/your-org/distributed-rust.git
+cd distributed-rust
+
+# 构建项目
+cargo build --workspace
+```
+
+### 运行示例
+
+```bash
+# 运行 Raft 共识算法演示
+cargo run -p distributed --example raft_demo
+
+# 运行分布式复制示例
+cargo run -p distributed --example e2e_replication
+
+# 运行 Saga 事务示例
+cargo run -p distributed --example e2e_saga
+
+# 运行负载均衡示例
+cargo run -p distributed --example e2e_load_balancer_min
+```
+
+### 运行测试
+
+```bash
+# 运行所有测试
+cargo test --workspace
+
+# 运行基准测试
+cargo bench --workspace
+
+# 运行混沌测试
+cargo test --features chaos --test chaos_tests
+```
+
+## 📖 目录
+
+- [项目概览](#-项目概览)
+- [核心特性](#-核心特性)
+- [学习路径](#-学习路径)
+- [分布式计算生态](#-分布式计算生态)
+- [解决方案](#-解决方案)
+- [开发指南](#-开发指南)
+- [贡献指南](#-贡献指南)
+
+## 🎯 项目概览
+
+Distributed Rust 是一个现代化的分布式系统教学与实践项目，旨在通过 Rust 语言展示分布式系统的核心概念、算法实现和工程实践。
+
+### 🏗️ 架构设计
+
+```
+distributed/               # 核心分布式系统库
+├── consensus/            # 共识算法 (Raft, Paxos, 拜占庭容错)
+├── consistency/          # 一致性模型 (线性一致, 因果一致, 最终一致)
+├── network/              # 网络通信 (RPC, 连接池, 分布式锁)
+├── storage/              # 存储抽象 (日志存储, 复制, 分区)
+├── monitoring/           # 监控系统 (指标收集, 健康检查)
+└── security/             # 安全模块 (访问控制, 限流熔断)
+
+solutions/                # 生产级解决方案
+├── foundations-datafusion/ # DataFusion + Foundations 集成
+├── vector-topology/        # Vector 分布式可观测性
+├── end-to-end-stack/       # 端到端参考架构
+└── deployment-strategies/  # 部署策略和配置
+```
+
+### 🎓 适用场景
+
+- **分布式系统学习**: 通过可运行代码理解分布式算法
+- **原型开发**: 快速搭建分布式系统原型
+- **生产部署**: 提供可部署的解决方案和最佳实践
+- **性能测试**: 基准测试和性能分析
+- **故障模拟**: 混沌工程和故障注入测试
+
+## 🚀 核心特性
+
+### 1. 分布式系统核心组件
+
+| 组件 | 功能 | 实现 |
+|------|------|------|
+| **共识算法** | 分布式一致性 | Raft, Paxos, 拜占庭容错 |
+| **一致性模型** | 数据一致性保证 | 线性一致, 顺序一致, 因果一致 |
+| **复制策略** | 数据冗余和可用性 | 主从复制, 链式复制, Quorum 读写 |
+| **成员管理** | 集群节点管理 | SWIM 故障检测, Gossip 协议 |
+| **负载均衡** | 请求分发 | 一致性哈希, 加权轮询, 最少连接 |
+
+### 2. 工程实践
+
+| 实践 | 功能 | 工具 |
+|------|------|------|
+| **可观测性** | 系统监控和调试 | 分布式追踪, 指标收集, 结构化日志 |
+| **安全治理** | 系统安全和稳定 | 访问控制, 限流熔断, 审计日志 |
+| **故障注入** | 系统韧性测试 | 混沌工程, 网络分区, 延迟注入 |
+| **配置管理** | 动态配置 | 热更新, 多环境配置, 版本控制 |
+
+### 3. 性能优化
+
+| 优化 | 技术 | 效果 |
+|------|------|------|
+| **异步编程** | Tokio 运行时 | 高并发, 低延迟 |
+| **内存管理** | 零拷贝序列化 | 减少内存分配和复制 |
+| **网络优化** | 连接池, 批量请求 | 提升网络吞吐量 |
+| **基准测试** | Criterion 驱动 | 性能回归检测 |
+
+## 🎓 学习路径
+
+### 初学者路径
+1. **基础概念**: 阅读 `docs/` 目录下的概念文档
+2. **简单示例**: 运行 `examples/` 中的基础示例
+3. **动手实践**: 修改示例代码，观察行为变化
+
+### 进阶路径
+1. **算法实现**: 深入研究 `consensus/` 和 `consistency/` 模块
+2. **性能调优**: 运行基准测试，分析性能瓶颈
+3. **端到端实践**: 使用 `solutions/` 中的完整解决方案
+
+### 专家路径
+1. **源码贡献**: 阅读核心代码，提交改进建议
+2. **新特性开发**: 实现新的分布式算法或优化
+3. **生产部署**: 使用部署策略在生产环境中验证
+
+## 📚 学习资源
+
+### 推荐课程
+- [MIT 6.824 分布式系统](https://pdos.csail.mit.edu/6.824/)
+- [Stanford CS244B 分布式系统](https://web.stanford.edu/class/cs244b/)
+- [CMU 15-440 分布式系统](https://www.cs.cmu.edu/~dga/15-440/S14/)
+
+### 相关书籍
+- 《分布式系统概念与设计》
+- 《数据密集型应用系统设计》
+- 《Rust 程序设计语言》
+
+### 重要论文
+- [Raft: In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
+- [The Part-Time Parliament](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf)
+- [Dynamo: Amazon's Highly Available Key-value Store](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
 
 ## 概览与选型速览
 

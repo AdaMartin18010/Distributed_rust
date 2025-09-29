@@ -170,7 +170,7 @@ ring = "0.17.14"
 webpki-roots = "1.1.1"
 
 # 错误处理 - 2025年1月最新稳定版本
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 anyhow = "1.0.100"
 
 # 序列化 - 2025年1月最新稳定版本 (已升级)
@@ -276,7 +276,7 @@ glommio = "0.8.0"
 # 安全漏洞修复 - 2025年1月
 # 替换未维护和有安全漏洞的依赖
 ahash = "0.8.12"  # 替代 fxhash (未维护)
-quote = "1.0.40"  # 替代 paste (未维护)
+quote = "1.0.41"  # 替代 paste (未维护)
 proc-macro-error2 = "2.0.1"  # 替代 proc-macro-error (未维护)
 is-terminal = "0.2.0"  # 替代 atty (有安全漏洞)
 wasm-bindgen = "0.2.103"  # 最新稳定版本，支持WebAssembly 2.0
