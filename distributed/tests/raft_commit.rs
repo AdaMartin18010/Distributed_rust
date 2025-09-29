@@ -1,3 +1,8 @@
+// 测试目的：提交推进与应用顺序不变量
+// - 不变量：
+//   1) commit_index 单调推进；
+//   2) apply 顺序与日志顺序一致；
+//   3) 未达提交点的条目不得被应用。
 #[cfg(feature = "consensus-raft")]
 mod raft_commit {
     use c20_distributed::consensus_raft::{

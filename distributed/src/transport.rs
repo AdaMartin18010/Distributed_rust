@@ -1,3 +1,19 @@
+//! 传输与RPC抽象
+//!
+//! 目标：
+//! - 提供 `RpcClient`/`RpcServer`、连接池、批量请求与重试策略，作为上层共识/复制/服务发现的基础。
+//! - 允许在不同运行时（feature `runtime-tokio`）下注入异步实现。
+//!
+//! 不变量与语义（草图）：
+//! - 连接池：连接条目健康度与空闲超时受 `ConnectionPoolConfig` 约束；`min/max_connections` 控制容量边界。
+//! - 请求批量：批量大小与超时控制触发；批量响应与请求一一对应（通过 `id` 与 `batch_id`）。
+//! - 重试策略：指数退避（简化实现），在 `retry_on_empty` 条件下对空响应做自适应重试；应避免破坏幂等性。
+//!
+//! 工程化注意：
+//! - 真实系统中需要：超时传播、取消、背压、熔断、追踪（trace id）与指标收集。
+//! - 异步 `register_async` 处当前为占位包装，生产实现需运行时驱动真正的 `Future`。
+//!
+//! 参考：gRPC/Envoy、Nagle/延迟/批处理相关文献，Google SRE 网络章节。
 use crate::errors::DistributedError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

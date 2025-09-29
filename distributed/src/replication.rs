@@ -1,3 +1,23 @@
+//! 复制与仲裁模块
+//!
+//! 设计目标：
+//! - 提供最小可用的复制接口 `Replicator` 与多数派（及可插拔）仲裁策略，支持不同一致性级别映射。
+//! - 支持一次性幂等控制（`IdempotencyStore`）以避免重放副作用。
+//!
+//! 不变量与性质（草图）：
+//! - 多数派交叠：当读/写均为多数派时，`R + W > N` 保证读取必与最新一次提交写操作交叠，实现线性化读取。
+//! - 幂等性：若 `idempotency.seen(id)` 为真，则重复的相同指令不应再次产生副作用。
+//! - 失败封装：复制结果由 `required_acks(total, level)` 决定，当收到的确认数 ≥ 需求值时视为成功。
+//!
+//! 工程化注意：
+//! - 网络/节点错误需要与重试策略配套；一次写入的“副作用是否可重试”需由上层定义。
+//! - 一致性级别到 `required_acks` 的映射在此为示例，可按产品语义调整。
+//! - 读/写分离策略可使用 `CompositeQuorum<R,W>` 实现 `R ≠ W` 的灵活配置。
+//!
+//! 参考：
+//! - Vogels, W. Eventually Consistent, 2009.
+//! - Gilbert & Lynch, Brewer’s Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services, 2002.
+//! - Amazon Dynamo 与 Riak 文献对 `R/W/N` 模型的实践。
 use crate::consistency::ConsistencyLevel;
 use crate::errors::DistributedError;
 use crate::storage::IdempotencyStore;

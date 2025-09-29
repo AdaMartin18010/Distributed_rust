@@ -1,5 +1,7 @@
 # 监控与可观测性指南
 
+> 关键不变量：RED/USE 指标分层落地；追踪与日志上下文关联；采样优先保留错误/慢调用。
+
 本文档提供了分布式系统监控与可观测性的全面指南，包括指标收集、日志聚合、链路追踪和告警系统。
 
 ## 🎯 可观测性三大支柱
@@ -9,6 +11,8 @@
 - **RED 指标**: 请求率 (Rate)、错误率 (Error)、持续时间 (Duration)
 - **USE 指标**: 利用率 (Utilization)、饱和度 (Saturation)、错误率 (Error)
 
+> 选择指引：面向外部接口以 RED 为主、面向系统资源以 USE 为主；两者互补。
+
 #### 分层指标建议
 
 - RPC 层：`rpc.requests`, `rpc.errors`, `rpc.latency.ms{op}`
@@ -17,17 +21,23 @@
 - 存储层：`wal.fsync.ms`, `snapshot.bytes`, `segment.crc.errors`
 - 补偿层：`saga.steps`, `saga.compensate.count`, `saga.failure.matrix{kind}`
 
+仪表设计建议：
+
+- 为 P50/P95/P99 延迟使用直方图桶，区分读取/写入/共识路径；标签维度受控，避免高基数。
+
 ### 2. 日志 (Logs)
 
 - **结构化日志**: 使用 JSON 格式，便于解析和查询
 - **日志级别**: Trace, Debug, Info, Warn, Error, Fatal
 - **上下文信息**: 包含 trace_id, span_id, user_id 等
+  - 与追踪关联：在日志条目中注入 trace/span 上下文，便于跨系统排障。
 
 ### 3. 链路追踪 (Tracing)
 
 - **分布式追踪**: 跨服务调用链追踪
 - **性能分析**: 识别性能瓶颈和热点
 - **错误定位**: 快速定位错误根源
+  - 采样策略：优先保留错误与慢调用，降低低价值流量；导出与存储遵循数据保留策略。
 
 ## 📊 指标收集
 

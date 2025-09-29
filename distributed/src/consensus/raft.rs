@@ -1,9 +1,21 @@
-//! Raft 接口骨架（受 feature `consensus-raft` 门控）
-//! 
-//! 增强功能：
-//! - 日志压缩和快照
-//! - 批量操作支持
-//! - 性能优化
+//! Raft 接口与最小实现骨架
+//!
+//! 设计目标：
+//! - 用最小代价表达 Raft 的消息与角色抽象（AppendEntries、RequestVote、InstallSnapshot）。
+//! - 保留关键不变量与提交路径，便于将来扩展持久化、重启恢复与网络层。
+//! - 提供快照/日志压缩与批处理入口，支撑工程化性能优化。
+//!
+//! 安全与不变量（草图）：
+//! - 单领导者不变量：同一任期内最多一个领导者（由投票规则与任期递增保证）。
+//! - 日志匹配性质：若 (prev_log_index, prev_log_term) 不匹配则拒绝附加，确保前缀一致。
+//! - 提交单调性：`commit_index` 单调不减，`last_applied ≤ commit_index` 并按序应用。
+//! - 快照边界：安装快照后，`last_included_index` 之前的日志被截断，但提交/应用边界保持一致。
+//!
+//! 形式化论证线索：
+//! - 前缀匹配引出提交唯一性：若某条目被多数派接受且作为领导者提交，则所有后续合法领导者在该索引处必须拥有相同 term，从而避免分叉提交。
+//! - 领导者更替安全：`RequestVote` 需候选人日志“不落后”（简化实现未完全覆盖，应在生产版加入“最新日志比较”）。
+//!
+//! 参考文献：参见模块 `consensus::mod` 顶部的参考列表（Raft 论文与实现经验文献）。
 
 use crate::core::errors::DistributedError;
 use std::collections::HashMap;
@@ -208,7 +220,7 @@ impl<E> MinimalRaft<E> {
         }
         self.state = RaftState::Follower;
 
-        // prev check
+        // 前置匹配校验：确保 (prev_log_index, prev_log_term) 与本地日志一致
         let prev_idx = req.prev_log_index.0 as usize;
         if prev_idx > 0 {
             let i = prev_idx - 1;
@@ -227,7 +239,7 @@ impl<E> MinimalRaft<E> {
             }
         }
 
-        // overwrite from prev_log_index
+        // 从 prev_log_index 截断并附加新的条目，维持前缀一致性
         let mut insert_at = prev_idx;
         if insert_at > self.log.len() {
             insert_at = self.log.len();
@@ -237,7 +249,7 @@ impl<E> MinimalRaft<E> {
             self.log.push((self.term, e));
         }
 
-        // commit & apply
+        // 提交并应用：确保 last_applied 按序推进至 commit_index
         let leader_commit = req.leader_commit.0 as usize;
         let log_len = self.log.len();
         self.commit_index = std::cmp::min(leader_commit, log_len);

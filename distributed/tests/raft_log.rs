@@ -1,3 +1,8 @@
+// 测试目的：日志前缀/匹配与覆盖不变量
+// - 不变量：
+//   1) prev_log 不匹配时拒绝；
+//   2) 匹配后从 prev 位置起截断并覆盖；
+//   3) 任期上升后允许覆盖旧任期后续条目。
 #[cfg(feature = "consensus-raft")]
 mod raft_log {
     use c20_distributed::consensus_raft::{

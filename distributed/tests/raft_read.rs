@@ -1,3 +1,10 @@
+// 测试目的：验证读屏障/提交序保障
+// - 不变量：提交单调（commit_index 单调不减）、应用顺序与日志顺序一致、前缀匹配导致 prev_log 校验失败时拒绝附加。
+// - 本文件展示：
+//   1) 提交后通过 apply 回调可见；
+//   2) 多条提交按顺序应用；
+//   3) prev_log 不匹配导致附加失败；
+//   4) scoped_apply 允许非 'static 回调在作用域内使用。
 #[cfg(feature = "consensus-raft")]
 use c20_distributed::consensus_raft::{AppendEntriesReq, LogIndex, MinimalRaft, RaftNode, Term};
 #[cfg(feature = "consensus-raft")]

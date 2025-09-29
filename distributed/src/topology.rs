@@ -1,3 +1,15 @@
+//! 拓扑与一致性哈希
+//!
+//! 目标：
+//! - 提供分片标识与一致性哈希环，支持节点增删与副本候选选择（`nodes_for`）。
+//! - 与 `partitioning.rs`/`replication.rs`、负载均衡策略协同使用。
+//!
+//! 不变量与性质（草图）：
+//! - 环有序性：`BTreeMap` 保持虚拟节点按哈希排序；路由按 `range(k..)` 回落至首元素实现环回。
+//! - 迁移上界：单节点变更引发的键迁移期望占比 O(1/replicas)；`nodes_for` 去重保证副本唯一。
+//! - 哈希稳定性：同一 key 与 ring 状态下路由稳定；引入虚拟节点以平衡分布。
+//!
+//! 参考：Karger 等 Consistent Hashing 论文；Jump Consistent Hash。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ShardId(pub u64);
 

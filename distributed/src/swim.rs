@@ -1,3 +1,17 @@
+//! SWIM 故障检测与会籍传播
+//!
+//! 设计目标：
+//! - 实现探测（ping/ping-req/ack）与反熵式 gossip，维护 `MembershipView` 收敛。
+//! - 显式使用 `incarnation` 消除 ABA 与回退，使用 `suspect_timeout` 降低误判。
+//!
+//! 不变量与性质（草图）：
+//! - 单调版本：`MembershipView.version` 单调递增；节点条目 `(incarnation, version)` 按字典序单调推进。
+//! - 可疑到故障：若在 `suspect_timeout` 内无活跃证据，则从 Suspect 过渡到 Faulty。
+//! - Gossip 收敛：随机对等传播在期望 O(log n) 时间内覆盖，结合版本/孪生抑制确保有界重复。
+//!
+//! 参考：
+//! - Das et al., SWIM: Scalable Weakly-consistent Infection-style Process Group Membership Protocol, 2002.
+//! - Lifeguard (SWIM 改进)：减少误判并改进探测准确率。
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

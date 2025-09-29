@@ -39,6 +39,8 @@
 
 ## 🏗️ 架构设计原则
 
+> 引用：Clean Architecture、Google SRE、DDIA（Designing Data-Intensive Applications）、Microservices Patterns。
+
 ### 1. 单一职责原则
 
 每个组件应该只负责一个明确的功能，避免功能耦合。
@@ -125,6 +127,8 @@ struct DistributedStorage {
 
 ## 🔄 一致性设计
 
+> 参考：Gilbert & Lynch (CAP)、PACELC (Abadi)、Adya et al. on Isolation Levels。
+
 ### 1. 选择合适的一致性级别
 
 根据业务需求选择合适的一致性级别。
@@ -207,6 +211,8 @@ impl ReadRepairManager {
 
 ## 🗳️ 共识算法设计
 
+> 参考：Raft (2014)、Paxos (1998)、EPaxos (2013)、Raft Refloated (2015)。
+
 ### 1. 合理配置选举超时
 
 避免频繁选举和脑裂。
@@ -271,6 +277,8 @@ impl LogCompactor {
 ```
 
 ## 💰 分布式事务设计
+
+> 参考：Sagas (1987)、TCC 模式、Spanner/TrueTime、FaunaDB 事务模型。
 
 ### 1. 选择合适的分布式事务模式
 
@@ -370,6 +378,8 @@ impl IdempotentOperation {
 
 ## 🔍 故障检测设计
 
+> 参考：SWIM (2002)、Lifeguard。
+
 ### 1. 实现多级故障检测
 
 结合直接探测和间接探测。
@@ -439,6 +449,8 @@ impl FailureRecoveryManager {
 ```
 
 ## ⚖️ 负载均衡设计
+
+> 参考：Consistent Hashing、Jump Consistent Hash、NGINX/Envoy 策略文档。
 
 ### 1. 选择合适的负载均衡算法
 
@@ -660,6 +672,8 @@ impl EncryptionManager {
 ```
 
 ## 📊 监控设计
+
+> 参考：Prometheus、OpenTelemetry、USE/RED 方法论。
 
 ### 1. 实现指标收集
 

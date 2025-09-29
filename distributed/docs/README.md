@@ -16,6 +16,14 @@
 - scheduling：限流、调度、优先级与负载治理
 - testing：分布式测试与混沌工程（Jepsen、故障注入、可重复实验）
 
+## 形式化要点与不变量（总览）
+
+- 共识安全性：提交唯一性（多数派交叠）；领导者单一性（任期内最多一位）；日志前缀匹配。
+- BFT 条件：PBFT 在 n≥3f+1、证书大小≥2f+1 时保证安全；视图变更证书交叠确保决定继承。
+- 复制读写：当 R+W>N 时，读必与最近一次写交叠，可实现线性化读取；Eventual 模式下允许短暂陈旧。
+- SWIM 收敛：gossip 随机传播在期望 O(log n) 时间覆盖，incarnation 与版本确保单调更新。
+- 一致性层级：Linearizable ⊇ Sequential ⊇ Causal ⊇ Session/Monotonic ⊇ Eventual（并非严格全序）。
+
 ## 能力地图（对标）
 
 1) 理论：CAP/PACELC、FLP 不可能性、时钟模型、共识安全性/活性
@@ -34,6 +42,11 @@
 
 - Wikipedia：CAP、Consensus、Paxos、Raft、Causal consistency、Vector clock
 - Papers：Raft, Paxos, EPaxos, Spanner/TrueTime, Dynamo, Cassandra, FaRM
+
+> 关键参考（精选）：
+> - Raft: Ongaro & Ousterhout (2014)；Paxos: Lamport (1998)；EPaxos: Moraru et al. (2013)
+> - PBFT: Castro & Liskov (1999)；CAP: Gilbert & Lynch (2002)；PACELC: Daniel Abadi (2012)
+> - Dynamo (2007)、Cassandra (2010)；SWIM (2002)；Jepsen Methodology
 
 各专题文档末尾提供具体参考与实现接口对照表。
 
@@ -152,6 +165,12 @@ repl.replicate_idempotent(&id, &nodes, b"cmd".to_vec(), ConsistencyLevel::Quorum
 ## 实验入口
 
 - 复制与一致性、Saga、哈希环、SWIM、基准：详见 `docs/EXPERIMENT_GUIDE.md`。
+
+### 形式化/验证建议
+
+- 在线性化检查中，构建操作序列与返回值映射，验证是否存在全序与顺序一致的可行映射。
+- 对共识路径添加属性测试：不变量（提交单调、任期单调、前缀匹配）在随机网络故障注入下保持成立。
+- 使用向量时钟模拟因果依赖，验证 happens-before 关系与并发检测。
 
 ## 测试导航
 

@@ -1,5 +1,7 @@
 # 成员管理与故障探测（Membership & Failure Detection）
 
+> 关键不变量：incarnation/version 单调合并；gossip 期望 O(log n) 收敛；Suspect 超时转 Faulty。
+
 - Gossip/SWIM、视图一致性、故障标记与传播
 - 接口：`MembershipView`, `FailureDetector`
 
@@ -8,6 +10,11 @@
 - 周期性随机探测：选取目标节点 `ping`；若超时，使用中继节点 `ping-req`。
 - 可疑标记（suspect）与确认（confirm）：通过 gossip 传播状态变化，降低误报与收敛延迟。
 - 扩展：Lifeguard/Swim+（降低误报、适应长尾延迟）。
+
+形式化要点（草图）：
+
+- 版本/代数（incarnation/version）单调：较新事件覆盖较旧事件；合并采用“更高代、更高版本优先”。
+- 收敛性：随机对等传播在期望 O(log n) 轮内覆盖全网；fanout 增大可降低常数项但提高带宽占用。
 
 ### 参数指南（建议）
 

@@ -1,3 +1,8 @@
+// 测试目的：角色/任期单调不变量
+// - 不变量：
+//   1) 接收到更大任期的 RPC 后，任期单调不减且保持/降级为 Follower；
+//   2) 在相同或更小任期下不得提升任期；
+//   3) 对无效请求返回当前任期。
 #[cfg(feature = "consensus-raft")]
 mod raft_state_flow {
     use c20_distributed::*;

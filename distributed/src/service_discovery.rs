@@ -1,6 +1,17 @@
 //! 服务发现模块
 //!
-//! 提供基于DNS和配置的服务发现机制，支持多种服务发现策略
+//! 范围与目标：
+//! - 支持 DNS/配置/注册中心/混合等多策略发现，内置健康检查与 TTL 缓存。
+//! - 暴露 `ServiceDiscoveryManager` 统一入口，便于负载均衡与路由层集成。
+//!
+//! 性质与注意（草图）：
+//! - 新鲜度与一致性：缓存 TTL 与健康检查周期共同决定视图新鲜度；CAP 下倾向可用与分区容忍。
+//! - 退化路径：主要策略失败时可回退至备用策略；健康检查应具备超时与重试。
+//! - 权重与地域：实例包含 `weight` 与 `region` 元数据，供上层策略使用。
+//!
+//! 参考：
+//! - Google SRE Book：负载均衡与服务发现章节。
+//! - Consul/Eureka/ZooKeeper 等注册中心实践资料。
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

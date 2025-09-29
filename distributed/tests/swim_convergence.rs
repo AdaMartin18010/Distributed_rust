@@ -1,3 +1,7 @@
+// 测试目的：
+// - 验证 SWIM 视图在更高 incarnation/version 到达后能收敛到更新状态。
+// 关键不变量：
+// - 版本单调性：成员条目 (incarnation, version) 单调推进；较新事件覆盖较旧事件。
 use distributed::swim::{MembershipView, SwimMemberState};
 
 #[test]

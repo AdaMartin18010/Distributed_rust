@@ -1,5 +1,7 @@
 # 共识（Consensus）
 
+> 关键不变量：领导者唯一、任期单调、日志前缀匹配、提交单调。
+
 - 覆盖：Raft、Paxos、Multi-Paxos、EPaxos、Viewstamped Replication
 - 课程参考：MIT 6.824 Lab2/3、CMU 15-440、Berkeley CS262A
 - 接口：`ConsensusApi`、`ConsensusRole`
@@ -12,6 +14,13 @@
 - 不变式：
   - 提交前条件：条目必须存储于多数派上且位于领导者任期内。
   - 应用前条件：应用层按 `commit_index` 单调推进；应用是确定性的状态机。
+  - 前缀匹配：若 index 处的 (term, value) 在多数派上存在，则任何合法领导者在该 index 处必须拥有同一 term。
+  - 任期单调：本地与消息中任期单调不减；新任期触发候选/跟随者降级。
+
+形式化线索：
+
+- 多数派交叠：任意两个多数派集合必有交集，确保已提交值唯一。
+- 线性化读：通过 read-index 多数派确认或安全租约（受时钟界约束）实现。
 
 ## 选举超时与心跳
 
@@ -67,6 +76,10 @@ let _resp = r.handle_append_entries(req).unwrap();
 
 - Raft 强调易实现与日志一致性；Paxos 家族理论简洁但工程细节多；EPaxos 适合跨地域低延迟但复杂度与冲突处理成本高。
 
+参考：
+
+- Lamport (1998), Ongaro & Ousterhout (2014), Moraru et al. (2013), Chandra et al. (2007)
+
 ## 实验指引（对齐课程）
 
 1) 选举与心跳：验证领导者唯一性与故障切换时间；注入网络分区与时钟抖动。
@@ -85,6 +98,7 @@ let _resp = r.handle_append_entries(req).unwrap();
 - Wiki：`Paxos`, `Raft`, `EPaxos`, `Viewstamped Replication`
 - 课程：MIT 6.824（Labs 2/3）、Berkeley CS262A 共识模块
 - 论文：Paxos Made Simple、Raft：In Search of an Understandable Consensus、EPaxos、VR Revisited
+  - PBFT（Castro & Liskov, 1999）用于拜占庭容错背景对比
 
 ## 练习与思考
 

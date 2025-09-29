@@ -1,5 +1,7 @@
 # 传输（Transport）
 
+> 关键不变量：共享 deadline、仅幂等操作自动重试、过载时背压/拒绝保护尾延迟。
+
 - RPC 抽象、流控与背压、超时与重试、幂等性
 - 接口：`RpcClient`, `RpcServer`
 
@@ -14,6 +16,11 @@ let cli = InMemoryRpcClient::new(srv);
 let retry = RetryClient { inner: cli, policy: RetryPolicy { max_retries: 3, retry_on_empty: true, backoff_base_ms: Some(10) } };
 let _ = retry.call("echo", b"hi");
 ```
+
+形式化/语义要点：
+
+- 共享截止时间（deadline）：同一请求的所有重试共享一次总预算，避免无界放大；在传播路径上透传 `deadline`。
+- 幂等约束：仅对幂等操作启用自动重试；非幂等需业务侧自管理或使用幂等键去重。
 
 带抖动退避示例：
 
@@ -46,6 +53,8 @@ fn next_backoff(base_ms: u64, attempt: u32) -> u64 {
 ## 背压（Backpressure）
 
 - 通过限流器/令牌桶防止过载；在客户端侧可根据错误信号进行指数退避。
+
+- 出口控制：在队列/连接池饱和时及时拒绝新请求或降级，保护尾延迟与核心功能。
 
 ## 接口清单（API 概览）
 

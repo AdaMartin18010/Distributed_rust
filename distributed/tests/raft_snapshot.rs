@@ -1,3 +1,8 @@
+// 测试目的：快照恢复一致性与截断不变量
+// - 不变量：
+//   1) 安装快照后，快照覆盖的前缀可被安全截断；
+//   2) 截断后从快照边界继续附加仍应成功；
+//   3) 提交/应用索引与快照边界保持一致。
 #[cfg(feature = "consensus-raft")]
 use c20_distributed::consensus_raft::{AppendEntriesReq, LogIndex, MinimalRaft, RaftNode, Snapshot, Term};
 

@@ -1,3 +1,20 @@
+//! PBFT（拜占庭容错）最小模型与网络模拟
+//!
+//! 设计目标：
+//! - 提供 Request/Prepare/PreCommit/Commit/ViewChange/NewView 的消息骨架与节点状态机。
+//! - 暴露法定人数与视图变更证书的构造点，便于接入真实网络、签名与持久化。
+//!
+//! 安全与活性要点（草图）：
+//! - 安全性：大小为 ≥ 2f+1 的准备/提交证书在 n ≥ 3f+1 下两两交叠，防止双重提交。
+//! - 活性：若主节点失败或作恶，视图变更在收敛条件与定时器驱动下推进到新主。
+//! - 本文件实现为教学与测试取向，未包含密码学签名与时钟/定时器机制，需在工程化版本中补齐。
+//!
+//! 形式化线索：
+//! - 证书唯一性：令 S1、S2 为任意两集合，|S1| ≥ 2f+1，|S2| ≥ 2f+1，n ≥ 3f+1，则 |S1 ∩ S2| ≥ f+1，
+//!   至少包含 f+1 诚实节点，保证旧视图中的安全决定在新视图被继承。
+//!
+//! 参考文献见 `consensus::mod` 顶部列表（Castro & Liskov, 1999 等）。
+
 use crate::consistency::ConsistencyLevel;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

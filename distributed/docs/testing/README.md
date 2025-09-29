@@ -107,13 +107,14 @@ proptest! {
         nodes in 3..=10usize,
         consistency in any::<ConsistencyLevel>()
     ) {
-        let replicator = LocalReplicator::new(nodes, consistency);
+        // 示例化属性：请根据实际 API 调整构造
+        let replicator = LocalReplicator::new(ConsistentHashRing::new(16), (0..nodes).map(|i| format!("n{}", i)).collect());
         
         // 属性1: 法定人数必须大于节点数的一半
-        prop_assert!(replicator.required_acks() > nodes / 2);
+        prop_assert!(MajorityQuorum::required_acks(nodes, consistency) > nodes / 2);
         
         // 属性2: 法定人数不能超过节点总数
-        prop_assert!(replicator.required_acks() <= nodes);
+        prop_assert!(MajorityQuorum::required_acks(nodes, consistency) <= nodes);
     }
 }
 ```
@@ -342,10 +343,11 @@ async fn test_latency_performance() {
     println!("P95 延迟: {:?}", p95);
     println!("P99 延迟: {:?}", p99);
     
-    // 验证性能要求
+    // 验证性能要求（示例基线，实际以 SLO 为准）
     assert!(p50 < Duration::from_millis(10));
     assert!(p95 < Duration::from_millis(50));
     assert!(p99 < Duration::from_millis(100));
+    // 互引：性能 SLO 的设定与度量参见 ../performance/OPTIMIZATION.md 与 ../observability/README.md
 }
 ```
 

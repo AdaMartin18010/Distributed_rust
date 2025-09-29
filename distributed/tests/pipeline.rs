@@ -1,3 +1,8 @@
+// 测试目的：管线/并行复制与幂等去重
+// - 不变量：
+//   1) 多数派达成后视为成功；
+//   2) 幂等键重复提交不产生副作用；
+//   3) 目标集合内默认 success=true 时，写入在 Quorum 下通过。
 use distributed::consistency::ConsistencyLevel;
 use distributed::replication::LocalReplicator;
 use distributed::storage::InMemoryIdempotency;

@@ -1,5 +1,7 @@
 # 拓扑（Topology）
 
+> 关键不变量：一致性哈希副本唯一、路由稳定；扩缩容迁移比例 ~1/N（期望）。
+
 - Sharding、Consistent Hashing、Ring、Re-sharding
 - 接口：`ShardId`, `ClusterTopology`
 
@@ -38,6 +40,11 @@ let owner = ring.route(&"order-1001").unwrap();
 - 单节点加入：期望迁移比例约为 `1/(现有节点数+1)`；
 - K 节点扩容：期望迁移比例近似 `K/(N+K)`；
 - 变更代价与虚节点正相关，但可降低瞬时热点集中。
+
+不变量（放置与副本唯一）：
+
+- `nodes_for(key, n)` 在环上按顺时针取 n 个不同节点，确保副本唯一且顺序确定；去重避免同节点重复计数。
+- 在相同环配置下，对同一 `key` 的路由稳定（deterministic），除非环发生变更。
 
 ### API 速览
 

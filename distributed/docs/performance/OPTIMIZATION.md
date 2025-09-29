@@ -2,6 +2,12 @@
 
 本文档提供了分布式系统性能优化的详细指南，包括理论分析、实践技巧和具体实现。
 
+## 📈 基线与 SLO（与可观测性互引）
+
+- 指标选择：对外接口优先 RED（Rate/Error/Duration），系统资源采用 USE（Utilization/Saturation/Error）。
+- 目标设定：给出 P50/P95/P99 延迟、吞吐与错误率目标；将目标写入测试断言与告警阈值。
+- 互引：详细指标与采样/标签规范见 `../observability/README.md`；测试断言示例见 `../testing/README.md`。
+
 ## 🎯 性能优化目标
 
 ### 关键指标

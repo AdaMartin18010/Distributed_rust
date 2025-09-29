@@ -1,10 +1,17 @@
+//! 一致性模型
+//!
+//! 范围与目标：
+//! - 汇总多种一致性级别（强、线性、因果、会话、单调、最终等），并提供简单的能力查询与兼容性检查。
+//! - 引入 `VectorClock`、会话与单调管理器以支撑工程化的弱一致性实现。
+//!
+//! 关系与可实现性（草图）：
+//! - 线性一致性 ≥ 顺序一致性 ≥ 因果一致性 ≥ 会话/单调 ≥ 最终一致性（并非严格全序，部分级别独立）。
+//! - PACELC：分区时在 C/A 间权衡，非分区时在 L/C 间权衡；`CAPStrategy` 给出简单映射示例。
+//!
+//! 参考：Herlihy & Wing、Gilbert & Lynch、PACELC（Daniel Abadi）。
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
-
-/// 分布式系统一致性级别
-///
-/// 基于CAP定理和PACELC定理，提供不同的一致性保证
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[derive(Default)]
 pub enum ConsistencyLevel {
