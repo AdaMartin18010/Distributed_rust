@@ -1,6 +1,6 @@
 # 安装指南
 
-本指南详细说明如何安装和配置 `c20_distributed` 分布式系统库。
+本指南详细说明如何安装和配置 `distributed` 分布式系统库。
 
 ## 📋 系统要求
 
@@ -42,7 +42,7 @@ cargo --version
 
 ```toml
 [dependencies]
-c20_distributed = "0.5.0"
+distributed = "0.5.0"
 
 # 必需的依赖
 tokio = { version = "1.0", features = ["full"] }
@@ -86,12 +86,12 @@ cargo build
 
 ```rust
 // src/main.rs
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::LocalReplicator;
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::LocalReplicator;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("c20_distributed 安装成功！");
+    println!("distributed 安装成功！");
     
     // 测试基本功能
     let replicator = LocalReplicator::new(3, 2, 2);
@@ -471,8 +471,8 @@ cargo flamegraph
 
 ## 🆘 获取帮助
 
-- **GitHub Issues**: [报告问题](https://github.com/your-org/c20_distributed/issues)
-- **Discussions**: [讨论交流](https://github.com/your-org/c20_distributed/discussions)
+- **GitHub Issues**: [报告问题](https://github.com/your-org/distributed/issues)
+- **Discussions**: [讨论交流](https://github.com/your-org/distributed/discussions)
 - **Stack Overflow**: [技术问答](https://stackoverflow.com/questions/tagged/c20-distributed)
 
 ---

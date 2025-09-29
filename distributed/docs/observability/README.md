@@ -9,6 +9,14 @@
 - **RED 指标**: 请求率 (Rate)、错误率 (Error)、持续时间 (Duration)
 - **USE 指标**: 利用率 (Utilization)、饱和度 (Saturation)、错误率 (Error)
 
+#### 分层指标建议
+
+- RPC 层：`rpc.requests`, `rpc.errors`, `rpc.latency.ms{op}`
+- 共识层：`raft.append.entries`, `raft.commit.index`, `raft.leader.elections`
+- 复制层：`replica.acks`, `replica.lag.ms`, `replica.repair.count`
+- 存储层：`wal.fsync.ms`, `snapshot.bytes`, `segment.crc.errors`
+- 补偿层：`saga.steps`, `saga.compensate.count`, `saga.failure.matrix{kind}`
+
 ### 2. 日志 (Logs)
 
 - **结构化日志**: 使用 JSON 格式，便于解析和查询
@@ -644,6 +652,21 @@ impl PrometheusMetrics {
             "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
             "legendFormat": "错误率 (%)"
           }
+        ]
+      }
+      ,
+      {
+        "title": "Raft 选举次数",
+        "type": "stat",
+        "targets": [
+          { "expr": "rate(raft_leader_elections_total[5m])", "legendFormat": "选举/秒" }
+        ]
+      },
+      {
+        "title": "副本落后 (ms)",
+        "type": "graph",
+        "targets": [
+          { "expr": "replica_lag_ms", "legendFormat": "{{node}}" }
         ]
       }
     ]

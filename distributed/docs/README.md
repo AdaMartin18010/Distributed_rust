@@ -128,6 +128,14 @@ repl.replicate_idempotent(&id, &nodes, b"cmd".to_vec(), ConsistencyLevel::Quorum
 - 运行示例：`cargo run -p c20_distributed --example e2e_saga`
 - 查看实验说明：`docs/EXPERIMENT_GUIDE.md`
 - 查看路线图：`docs/ROADMAP.md`
+- 一键命令合集：
+  - 格式化：`cargo fmt && cargo clippy -- -D warnings`
+  - 全部测试：`cargo test --workspace --all-features -- --nocapture`
+  - 基准：`cargo bench -p c20_distributed`
+  - 常用示例：
+    - `cargo run -p c20_distributed --example e2e_replication`
+    - `cargo run -p c20_distributed --example e2e_saga`
+  - 环境建议：安装 Rust 1.89+、启用 `rust-analyzer`，Linux/macOS 优先；Windows 下建议使用 WSL2。
 
 ## 如何选择一致性级别
 
@@ -138,6 +146,8 @@ repl.replicate_idempotent(&id, &nodes, b"cmd".to_vec(), ConsistencyLevel::Quorum
 ## 常见陷阱
 
 - 见 `docs/PITFALLS.md`：多数派边界、Eventual 读旧值、一致性哈希倾斜、Saga 幂等、SWIM 参数等。
+- R/W 配置提醒：确保 `R+W>N` 满足线性读；在强一致读下避免使用旧会话缓存。
+- 租约读提醒：当时钟误差界 ε 增大或心跳异常时自动降级为多数派读。
 
 ## 实验入口
 

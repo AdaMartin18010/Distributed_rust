@@ -5,12 +5,12 @@
 ## SAGA 最小示例
 
 ```rust
-use c20_distributed::transactions::{Saga, SagaStep};
+use distributed::transactions::{Saga, SagaStep};
 
 struct Step;
 impl SagaStep for Step {
-  fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> { Ok(()) }
-  fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> { Ok(()) }
+  fn execute(&mut self) -> Result<(), distributed::DistributedError> { Ok(()) }
+  fn compensate(&mut self) -> Result<(), distributed::DistributedError> { Ok(()) }
 }
 
 let saga = Saga::new().then(Box::new(Step));
@@ -22,6 +22,25 @@ let _ = saga.run();
 - 状态：Pending → Executing(i) → Completed | Compensating(j) → Compensated | Failed
 - 每步提供 `execute/compensate`，要求补偿操作可重入且幂等。
 - 失败策略：遇到不可恢复错误时自后向前补偿已完成步骤。
+
+### 编排图（示意）
+
+```text
+Step1(execute) → Step2(execute) → Step3(execute)
+   |失败               |失败               |失败
+   v                  v                  v
+Comp1  ←--------------Comp2  ←-----------Comp3
+```
+
+### 失败矩阵与可观测性字段
+
+| 场景 | execute 返回 | 重试 | 跳过 | 人工介入 | 观测字段 |
+|------|--------------|------|------|----------|----------|
+| 可重试错误 | Timeout/Unavailable | 是 | 否 | 否 | `error_kind`, `attempt`, `idempotency_key` |
+| 业务冲突 | Conflict | 否 | 可配置 | 可配置 | `compensated=true`, `conflict_key` |
+| 不可恢复 | Validation | 否 | 否 | 是 | `abort_reason`, `step_index` |
+
+建议记录：`trace_id`、`saga_id`、`step_name`、`attempt`、`latency_ms`、`compensated`。
 
 ## TCC（Try-Confirm-Cancel）
 
@@ -54,6 +73,11 @@ let _ = saga.run();
 - 每个事务/步骤带 `idempotency_key`；服务端记录并去重。
 - 与 `transport::RetryPolicy` 协作，确保在重试/超时场景下不会产生重复副作用。
 
+### 幂等补偿键设计
+
+- 每个步骤持有两类键：`exec_idempotency_key` 与 `comp_idempotency_key`；两条路径分别去重。
+- 补偿应可重入：重复调用 `compensate` 需不改变最终一致状态。
+
 ## 隔离级别与分布式事务
 
 - 隔离级别：读未提交、读已提交、可重复读、可串行化。
@@ -73,24 +97,24 @@ let _ = saga.run();
 
 ## 实验与测试入口
 
-- 运行：`cargo test -p c20_distributed --test saga`；示例：`cargo run -p c20_distributed --example e2e_saga`
+- 运行：`cargo test -p distributed --test saga`；示例：`cargo run -p distributed --example e2e_saga`
 - 观察：失败步触发逆序补偿与重复补偿的幂等性。
 
 ## 示例扩展（两步业务伪代码）
 
 ```rust
-use c20_distributed::transactions::{Saga, SagaStep};
+use distributed::transactions::{Saga, SagaStep};
 
 struct ReserveInventory; // Try/Confirm/Cancel 可映射为 execute/compensate
 impl SagaStep for ReserveInventory {
-  fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> { Ok(()) }
-  fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> { Ok(()) }
+  fn execute(&mut self) -> Result<(), distributed::DistributedError> { Ok(()) }
+  fn compensate(&mut self) -> Result<(), distributed::DistributedError> { Ok(()) }
 }
 
 struct ChargePayment;
 impl SagaStep for ChargePayment {
-  fn execute(&mut self) -> Result<(), c20_distributed::DistributedError> { Err("payment failed".into()) }
-  fn compensate(&mut self) -> Result<(), c20_distributed::DistributedError> { Ok(()) }
+  fn execute(&mut self) -> Result<(), distributed::DistributedError> { Err("payment failed".into()) }
+  fn compensate(&mut self) -> Result<(), distributed::DistributedError> { Ok(()) }
 }
 
 let saga = Saga::new().then(Box::new(ReserveInventory)).then(Box::new(ChargePayment));

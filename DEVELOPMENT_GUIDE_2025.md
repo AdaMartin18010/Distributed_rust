@@ -44,7 +44,7 @@ cargo install cargo-audit cargo-deny cargo-outdated
 
 ### 核心目录
 
-```
+```text
 distributed/
 ├── src/                    # 源代码目录
 │   ├── lib.rs             # 库入口点
@@ -76,7 +76,7 @@ distributed/
 
 ### 解决方案目录
 
-```
+```text
 solutions/
 ├── foundations-datafusion/  # DataFusion 集成
 ├── vector-topology/        # Vector 配置

@@ -1,14 +1,14 @@
-# C20 分布式系统常见问题解答 (FAQ)
+# 分布式系统常见问题解答 (FAQ)
 
 ## 基础概念问题
 
-### Q1: 什么是C20分布式系统库？
+### Q1: 什么是分布式系统库？
 
-A: C20分布式系统是一个基于Rust 1.89的分布式系统开发库，专注于成员管理、拓扑与分片、复制与一致性、共识抽象、事务与补偿、故障检测与反熵等核心功能。
+A: 分布式系统是一个基于Rust 1.89的分布式系统开发库，专注于成员管理、拓扑与分片、复制与一致性、共识抽象、事务与补偿、故障检测与反熵等核心功能。
 
-### Q2: C20支持哪些分布式系统模式？
+### Q2: 支持哪些分布式系统模式？
 
-A: C20支持多种分布式系统模式：
+A: 支持多种分布式系统模式：
 
 - **成员管理**: 动态节点加入/离开
 - **拓扑管理**: 一致性哈希、分片
@@ -17,13 +17,13 @@ A: C20支持多种分布式系统模式：
 - **事务处理**: Saga模式、补偿事务
 - **故障检测**: SWIM协议、反熵机制
 
-### Q3: 如何安装和配置C20？
+### Q3: 如何安装和配置？
 
 A: 在`Cargo.toml`中添加依赖：
 
 ```toml
 [dependencies]
-c20_distributed = { version = "0.1.0", features = ["runtime-tokio", "consensus-raft"] }
+_distributed = { version = "0.1.0", features = ["runtime-tokio", "consensus-raft"] }
 ```
 
 ## 成员管理问题
@@ -33,7 +33,7 @@ c20_distributed = { version = "0.1.0", features = ["runtime-tokio", "consensus-r
 A: 使用成员管理模块：
 
 ```rust
-use c20_distributed::membership::{MembershipManager, Node, NodeId, MembershipEvent};
+use _distributed::membership::{MembershipManager, Node, NodeId, MembershipEvent};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用节点发现机制：
 
 ```rust
-use c20_distributed::membership::{NodeDiscovery, DiscoveryStrategy};
+use _distributed::membership::{NodeDiscovery, DiscoveryStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -112,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用一致性哈希模块：
 
 ```rust
-use c20_distributed::topology::{ConsistentHash, HashRing, VirtualNode};
+use _distributed::topology::{ConsistentHash, HashRing, VirtualNode};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -150,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用分片模块：
 
 ```rust
-use c20_distributed::partitioning::{ShardManager, ShardKey, ShardStrategy};
+use _distributed::partitioning::{ShardManager, ShardKey, ShardStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -190,7 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用复制模块：
 
 ```rust
-use c20_distributed::replication::{ReplicationManager, Replica, ConsistencyLevel};
+use _distributed::replication::{ReplicationManager, Replica, ConsistencyLevel};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -229,7 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用一致性控制：
 
 ```rust
-use c20_distributed::consistency::{ConsistencyManager, ConsistencyLevel, ReadRepair};
+use _distributed::consistency::{ConsistencyManager, ConsistencyLevel, ReadRepair};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -271,7 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用Raft共识模块：
 
 ```rust
-use c20_distributed::consensus::raft::{RaftNode, RaftConfig, LogEntry};
+use _distributed::consensus::raft::{RaftNode, RaftConfig, LogEntry};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -307,7 +307,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用PBFT共识模块：
 
 ```rust
-use c20_distributed::consensus::pbft::{PBFTNode, PBFTConfig, PBFTMessage};
+use _distributed::consensus::pbft::{PBFTNode, PBFTConfig, PBFTMessage};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -346,7 +346,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用Saga事务模块：
 
 ```rust
-use c20_distributed::transactions::{SagaManager, SagaStep, CompensationAction};
+use _distributed::transactions::{SagaManager, SagaStep, CompensationAction};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -390,7 +390,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用分布式锁模块：
 
 ```rust
-use c20_distributed::transactions::{DistributedLock, LockType, LockTimeout};
+use _distributed::transactions::{DistributedLock, LockType, LockTimeout};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -437,7 +437,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用SWIM协议：
 
 ```rust
-use c20_distributed::swim::{SWIMNode, SWIMConfig, FailureDetector};
+use _distributed::swim::{SWIMNode, SWIMConfig, FailureDetector};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -479,7 +479,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用反熵模块：
 
 ```rust
-use c20_distributed::anti_entropy::{AntiEntropyManager, MerkleTree, SyncStrategy};
+use _distributed::anti_entropy::{AntiEntropyManager, MerkleTree, SyncStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -519,7 +519,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用逻辑时钟模块：
 
 ```rust
-use c20_distributed::time::{LogicalClock, VectorClock, LamportClock};
+use _distributed::time::{LogicalClock, VectorClock, LamportClock};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -556,7 +556,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用调度模块：
 
 ```rust
-use c20_distributed::scheduling::{DistributedScheduler, Task, SchedulingPolicy};
+use _distributed::scheduling::{DistributedScheduler, Task, SchedulingPolicy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -595,7 +595,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用存储模块：
 
 ```rust
-use c20_distributed::storage::{DistributedStorage, StorageBackend, ReplicationStrategy};
+use _distributed::storage::{DistributedStorage, StorageBackend, ReplicationStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -631,7 +631,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用状态机模块：
 
 ```rust
-use c20_distributed::storage::{StateMachine, StateMachineCommand, StateMachineResult};
+use _distributed::storage::{StateMachine, StateMachineCommand, StateMachineResult};
 
 pub struct CounterStateMachine {
     count: i32,
@@ -689,7 +689,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 A: 使用可观测性模块：
 
 ```rust
-use c20_distributed::observability::{MetricsCollector, Tracing, Logging};
+use _distributed::observability::{MetricsCollector, Tracing, Logging};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -16,6 +16,16 @@
 - 若 `R + W > N`，线性一致读；若 `W > N/2`，可保证提交的唯一性。
 - 动态调参：在高延迟/分区时降低 R 或 W 以提升可用性（与业务 SLA 协调）。
 
+### required_acks(N, Level)
+
+| Level     | 写入 required_acks (W)        | 读取 required_reads (R)        | 备注 |
+|-----------|-------------------------------|--------------------------------|------|
+| Strong    | ⌈N/2⌉+1                       | ⌈N/2⌉+1                        | 满足 R+W>N 且 W> N/2 |
+| Quorum    | ⌈N/2⌉+1                       | 1 或 ⌈N/2⌉+1                   | 写入采用多数；读取可按 SLA 调整 |
+| Eventual  | 1                             | 1                              | 最终一致，读修复/反熵收敛 |
+
+计算函数示例：`required_acks(N, Strong|Quorum|Eventual)`。
+
 ## 放置与路由
 
 - 使用 `topology::ConsistentHashRing` 选择 N 个节点；跨机架/机房做 `failure domain` 分散。
@@ -62,6 +72,67 @@
 
 - 在请求头或上下文中传入幂等键 `id`，由 `IdempotencyStore` 记录已执行结果或执行中状态。
 - 重试与乱序到达时可避免重复副作用；与 `transport::RetryPolicy` 协同使用。
+
+## 写入路径伪代码与失败重试
+
+```rust
+// 写入路径（简化）：放置→去重→并行写→收敛与确认
+fn write_with_quorum(key: &Key, value: Bytes, level: ConsistencyLevel, idempotency_key: Option<Id>) -> Result<()> {
+    let replicas = topology.nodes_for(key, N);
+    if let Some(id) = idempotency_key {
+        if let Some(prev) = idempotency_store.lookup(&id) { return Ok(prev); }
+        idempotency_store.begin(&id);
+    }
+    let w = required_acks(N, level);
+    let mut successes = 0;
+    let mut attempts = 0;
+    for r in replicas_parallel(replicas) {
+        let result = transport.retry_with_jitter_deadline(|| r.append(value.clone()));
+        if result.is_ok() { successes += 1; }
+        attempts += 1;
+        if successes >= w { break; }
+    }
+    if successes >= w {
+        if let Some(id) = idempotency_key { idempotency_store.commit(&id); }
+        return Ok(())
+    }
+    if let Some(id) = idempotency_key { idempotency_store.abort(&id); }
+    Err(Error::NotEnoughAcks { got: successes, need: w, attempts })
+}
+```
+
+语义要点：
+
+- 幂等键贯穿同一请求的所有重试；服务端去重缓存返回上次成功结果。
+- 退避采用带抖动的指数/等距策略；重试共享同一截止时间（deadline）。
+- 只对被视为暂时性错误（超时/`Unavailable`）进行重试；幂等性不足的写需谨慎开启重试。
+
+## 提交推进与读屏障（时序示意）
+
+```text
+Client         Leader/Replica A        Replica B        Replica C
+  |  write(k,v,id)    |                   |                |
+  |------------------>| append log        |                |
+  |                   |----replicate----->| append ok      |
+  |                   |----replicate---------------------->| append ok
+  |                   | commit index→t                   |
+  |                   | apply state @t                   |
+  |<--ack (>=W)-------|                                   |
+  | read(k)           |                                   |
+  |------------------>| read-index/屏障至 commit>=t       |
+  |<------------------| value@t                           |
+```
+
+读屏障选项：
+
+- read-index/lease-read：确保读取不回退到 `t` 之前；租约失效或不确定时退回多数派读。
+- 会话保证：同客户端会话内读在提交后不可回退。
+
+## 常见问题（FAQ）
+
+- ACK 抖动：副本延迟分布长尾导致 `W` 达标时间波动。建议：采用少量超额并发（hedged）或动态副本挑选，避免固定慢副本卡尾。
+- 局部可用导致写放大：少数派分区内不断重试使无效流量放大。建议：基于拓扑与视图过滤不可达副本；对重试设置总预算与幂等去重。
+- 尾延迟治理：使用带抖动退避、限制单次请求的最大重试次数与并发度；必要时降级到 Eventual 读取以保护整体 SLA。
 
 ## 练习与思考
 

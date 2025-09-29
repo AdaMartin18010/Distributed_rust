@@ -35,6 +35,18 @@
 - 续约窗口：在 L−δ 内触发续约；若续约失败则切换到多数派读。
 - 故障恢复：恢复后的节点在确认任期/视图之前不得提供租约读。
 
+### 示例：基于 ε 的租约判定
+
+```rust
+struct LeaseGuard { epsilon_ms: u64, last_heartbeat_ms: u64, lease_ms: u64 }
+impl LeaseGuard {
+  fn can_serve_read(&self, now_ms: u64) -> bool {
+    let safe_until = self.last_heartbeat_ms + self.lease_ms - self.epsilon_ms;
+    now_ms <= safe_until
+  }
+}
+```
+
 ## 实验与命令
 
 - 回拨模拟：`tests/lease_read.rs`（规划）模拟 `ε` 增大与心跳丢失，验证拒绝路径与降级到多数派读。

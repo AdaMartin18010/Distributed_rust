@@ -47,11 +47,11 @@
 
 ```toml
 [dev-dependencies]
-c20_distributed = { version = "0.1", features = ["consensus-raft"] }
+distributed = { version = "0.1", features = ["consensus-raft"] }
 ```
 
 ```rust
-use c20_distributed::consensus_raft::{MinimalRaft, RaftNode, AppendEntriesReq, Term, LogIndex};
+use distributed::consensus_raft::{MinimalRaft, RaftNode, AppendEntriesReq, Term, LogIndex};
 let mut r: MinimalRaft<Vec<u8>> = MinimalRaft::new();
 let req = AppendEntriesReq { term: Term(1), leader_id: "n1".into(), prev_log_index: LogIndex(0), prev_log_term: Term(0), entries: vec![b"a".to_vec()], leader_commit: LogIndex(0) };
 let _resp = r.handle_append_entries(req).unwrap();
@@ -125,16 +125,16 @@ Leader 复制与提交推进（commit_index）  -> src/consensus_raft/leader.rs
 - 运行最小示例：
 
 ```powershell
-cargo run -p c20_distributed --example e2e_replication
+cargo run -p distributed --example e2e_replication
 # 如开启 Raft：
-cargo test -p c20_distributed --features consensus-raft --test raft_minimal -- --nocapture
+cargo test -p distributed --features consensus-raft --test raft_minimal -- --nocapture
 ```
 
 - 推荐日志与随机种子：
 
 ```powershell
-$env:RUST_LOG="info,c20_distributed=debug"; $env:RUST_BACKTRACE=1
-cargo test -p c20_distributed --features consensus-raft -- --nocapture
+$env:RUST_LOG="info,distributed=debug"; $env:RUST_BACKTRACE=1
+cargo test -p distributed --features consensus-raft -- --nocapture
 ```
 
 - 性能/功能基线：
@@ -167,7 +167,7 @@ cargo test -p c20_distributed --features consensus-raft -- --nocapture
 ## 示例：线性化读（Read Index）骨架
 
 ```rust
-use c20_distributed::consensus_raft::{MinimalRaft, RaftNode};
+use distributed::consensus_raft::{MinimalRaft, RaftNode};
 
 fn linearizable_read<R: RaftNode>(raft: &mut R) -> anyhow::Result<Vec<u8>> {
     // 1) 多数派心跳确认领导者仍然有效并获取 commit_index

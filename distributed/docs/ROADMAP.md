@@ -1,4 +1,4 @@
-# 持续推进路线图（c20_distributed）
+# 持续推进路线图（distributed）
 
 目标：按照“课程对标→概念落地→可验证实现→实验复现”的路径，逐步完善，并为每个里程碑提供可操作的交付与验收标准。
 
@@ -13,8 +13,8 @@
   - 单元/属性测试样例：`tests/replication_local.rs`、`tests/hashring_properties.rs`、`tests/saga.rs` 的最小断言覆盖。
   - 最小端到端 Demo：`examples/e2e_saga.rs` 串起路由→复制→幂等→补偿。
 - 验收标准：
-  - `cargo test -p c20_distributed` 通过且包含上述测试文件。
-  - `cargo run -p c20_distributed --example e2e_saga` 正常结束，输出含补偿路径观测。
+  - `cargo test -p distributed` 通过且包含上述测试文件。
+  - `cargo run -p distributed --example e2e_saga` 正常结束，输出含补偿路径观测。
 - 关联实验/测试：详见《实验指南》1、2、3 小节。
 - 风险与缓解：
   - 风险：测试对时间参数敏感 → 缓解：使用逻辑时钟/可配置超时模拟。
@@ -22,16 +22,16 @@
 ### 文件与路径核对清单（M1）
 
 - 测试：
-  - `crates/c20_distributed/tests/replication_local.rs`
-  - `crates/c20_distributed/tests/hashring_properties.rs`
-  - `crates/c20_distributed/tests/saga.rs`
+  - `crates/distributed/tests/replication_local.rs`
+  - `crates/distributed/tests/hashring_properties.rs`
+  - `crates/distributed/tests/saga.rs`
 - 示例：
-  - `crates/c20_distributed/examples/e2e_saga.rs`
+  - `crates/distributed/examples/e2e_saga.rs`
 - 文档：
-  - `crates/c20_distributed/docs/EXPERIMENT_GUIDE.md`
-  - `crates/c20_distributed/docs/WIKI_MAPPING.md`
-  - `crates/c20_distributed/docs/CONCEPT_MODEL.md`
-  - `crates/c20_distributed/docs/COURSE_ALIGNMENT.md`
+  - `crates/distributed/docs/EXPERIMENT_GUIDE.md`
+  - `crates/distributed/docs/WIKI_MAPPING.md`
+  - `crates/distributed/docs/CONCEPT_MODEL.md`
+  - `crates/distributed/docs/COURSE_ALIGNMENT.md`
 
 ## 里程碑 M2：一致性与复制增强
 
@@ -41,7 +41,7 @@
   - 提供 Jepsen 风格本地历史生成器与基本检查器（线化/会话保证子集）。
 - 验收标准：
   - `tests/consistency_matrix.rs` 展示不同 Level 下的读写可见性差异并通过。
-  - `cargo bench -p c20_distributed` 输出 `ack_quorum_table`，包含不同 N、Level 的统计。
+  - `cargo bench -p distributed` 输出 `ack_quorum_table`，包含不同 N、Level 的统计。
 - 关联实验/测试：实验 1、5。
 - 风险与缓解：
   - 风险：线化检查复杂度高 → 缓解：先做小规模 bounded 检查与会话保证子集。
@@ -53,7 +53,7 @@
   - `swim` 支持探测周期、fanout、间接探测开关；事件轨迹导出（CSV/JSON）。
   - 提供可视化脚本（Python/gnuplot）生成收敛曲线与误报率图。
 - 验收标准：
-  - `cargo test -p c20_distributed --test swim_pingreq -- --nocapture` 打印包含间接成功样例。
+  - `cargo test -p distributed --test swim_pingreq -- --nocapture` 打印包含间接成功样例。
   - 可视化脚本对样本数据生成图像文件（存入 `target/tmp/`）。
 - 关联实验/测试：实验 4。
 - 风险与缓解：
@@ -67,7 +67,7 @@
   - 持久化接口与快照 stub（草案）；与 `storage` 对接基本 Apply。
 - 验收标准：
   - `tests/raft_minimal.rs`：领导者选举、前缀匹配、提交索引单调性断言通过。
-  - `cargo bench -p c20_distributed` 输出 Raft 心跳与复制延迟的粗略统计（非稳定）。
+  - `cargo bench -p distributed` 输出 Raft 心跳与复制延迟的粗略统计（非稳定）。
 - 关联实验/测试：新增“Raft 最小路径”实验小节。
 - 风险与缓解：
   - 风险：状态爆炸与时序竞态 → 缓解：单线程模拟 + 驱动步进器，先验收安全性再优化活性。
@@ -79,7 +79,7 @@
   - `examples/e2e_payment_inventory.rs`（或整合 `e2e_saga`）：下单→锁库存→支付，任一步失败触发逆序补偿。
   - `transactions` 提供幂等键建议与补偿重试策略接口。
 - 验收标准：
-  - `cargo run -p c20_distributed --example e2e_saga` 输出包含补偿重试日志且最终不变式保持。
+  - `cargo run -p distributed --example e2e_saga` 输出包含补偿重试日志且最终不变式保持。
   - `tests/saga_compensation.rs` 覆盖重复补偿与跨分区写入路径。
 
 ---
@@ -88,13 +88,13 @@
 
 ```powershell
 # 1) 单元与属性测试
-cargo test -p c20_distributed --all-features -- --nocapture
+cargo test -p distributed --all-features -- --nocapture
 
 # 2) 示例
-cargo run -p c20_distributed --example e2e_saga
+cargo run -p distributed --example e2e_saga
 
 # 3) 基准（可选）
-cargo bench -p c20_distributed
+cargo bench -p distributed
 ```
 
 - 关联实验/测试：实验 2。
@@ -110,7 +110,7 @@ cargo bench -p c20_distributed
   - 属性测试与基准：`benches/` 增加再均衡与 ACK 延迟分布基准。
   - 文档：《实验指南》与《常见陷阱》保持与实现同步更新。
 - 验收标准：
-  - `cargo bench -p c20_distributed` 可在本地生成摘要；关键图表说明写入 `docs/experiments/`。
+  - `cargo bench -p distributed` 可在本地生成摘要；关键图表说明写入 `docs/experiments/`。
 
 ## 时间建议
 

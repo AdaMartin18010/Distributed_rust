@@ -9,7 +9,7 @@
 - 示例：
 
 ```rust
-use c20_distributed::topology::ConsistentHashRing;
+use distributed::topology::ConsistentHashRing;
 let mut ring = ConsistentHashRing::new(50);
 ring.add_node("n1");
 ring.add_node("n2");
@@ -21,12 +21,23 @@ let owner = ring.route(&"order-1001").unwrap();
 - 每个物理节点对应多个虚节点（`replicas`）；将节点哈希多次放置在环上，平滑负载并降低重平衡抖动。
 - 经验：`replicas` 取 50~200 之间，按规模与键分布调参。
 
+#### 倾斜实验与图示（建议）
+
+- 实验：固定节点数与键数，改变 `replicas`，测量每节点键数分布的 P95/P99；绘制随 `replicas` 变化的倾斜度曲线。
+- 预期：`replicas` 增大，倾斜度下降且迁移更平滑，但路由内存与重建成本上升。
+
 ### 重平衡（Rebalance）与代价
 
 - 加入/移除节点时，仅相邻区间的键会迁移（O(键/节点数)）。
 - 实现要点：
   - 更新环后，增量地迁移受影响分片；对读取路径采用“双读”或“读修复”以降低短期不一致。
   - 与 `replication` 搭配时，先在新放置上写入副本并等待达标，再逐步淘汰旧副本。
+
+#### 迁移比例推导（要点）
+
+- 单节点加入：期望迁移比例约为 `1/(现有节点数+1)`；
+- K 节点扩容：期望迁移比例近似 `K/(N+K)`；
+- 变更代价与虚节点正相关，但可降低瞬时热点集中。
 
 ### API 速览
 
@@ -49,13 +60,21 @@ let owner = ring.route(&"order-1001").unwrap();
   - 前缀分片：将热点前缀拆分为多个子分片。
 - 监控：结合 `tracing` 与指标系统跟踪每节点 QPS/延迟并自适应调整。
 
+#### 粘性路由（Session Affinity）与副作用
+
+- 定义：在会话存续期将同一客户端/键路由至同一节点，减少跨节点状态搬迁与缓存未命中。
+- 风险：在扩容/节点失衡时放大热点；需要与一致性哈希配合，使用 `client_id`/`session_id` 作为路由键并限制会话寿命。
+- 建议：
+  - 只对需要会话状态的读路径开启粘性；写路径仍按键路由，避免写放大。
+  - 当监测到节点倾斜超过阈值时，逐步打破粘性（缩短 TTL、增加随机扰动），并触发后台迁移。
+
 ## 评估指标与命令
 
 - 指标：
   - 键迁移比例（扩/缩容一次）：期望接近 1/N。
   - 倾斜度：P95/P99 分布，随 `replicas` 增大而下降。
   - 放置亲和：跨故障域分散度（zone/region 的去重率）。
-- 实验命令：`cargo test -p c20_distributed --test hashring_properties`
+- 实验命令：`cargo test -p distributed --test hashring_properties`
 
 ## 进一步阅读
 
@@ -70,7 +89,7 @@ let owner = ring.route(&"order-1001").unwrap();
 
 ## 实验入口与评估指标
 
-- 运行：`cargo test -p c20_distributed --test hashring_properties`
+- 运行：`cargo test -p distributed --test hashring_properties`
 - 评估：键迁移比例接近 1/N；倾斜度（P95/P99）随 `replicas` 增大而下降；扩缩容期间尾延迟控制。
 
 ## 代码锚点

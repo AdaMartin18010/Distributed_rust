@@ -6,7 +6,7 @@
 ## 重试策略
 
 ```rust
-use c20_distributed::transport::{InMemoryRpcServer, InMemoryRpcClient, RetryClient, RetryPolicy};
+use distributed::transport::{InMemoryRpcServer, InMemoryRpcClient, RetryClient, RetryPolicy};
 
 let mut srv = InMemoryRpcServer::new();
 srv.register("echo", Box::new(|b| b.to_vec()));
@@ -15,15 +15,33 @@ let retry = RetryClient { inner: cli, policy: RetryPolicy { max_retries: 3, retr
 let _ = retry.call("echo", b"hi");
 ```
 
+带抖动退避示例：
+
+```rust
+fn next_backoff(base_ms: u64, attempt: u32) -> u64 {
+    use rand::{Rng, rngs::SmallRng, SeedableRng};
+    let exp = base_ms.saturating_mul(1u64 << attempt.min(10));
+    let mut rng = SmallRng::from_entropy();
+    rng.gen_range(0..=exp) // Full Jitter
+}
+```
+
 ## 超时与截止时间（Deadline）
 
 - 为每次请求设置总预算（如 200ms），重试共享同一截止时间，避免“无界重试”。
 - 与 `scheduling` 配合：根据剩余预算动态计算下一次超时与退避间隔。
+- 传播：在请求上下文中附带 `deadline_ms` 字段，跨多跳保持一致；下游若发现预算不足应尽快失败并返回 `DeadlineExceeded`。
 
 ## 幂等键与去重缓存
 
 - 客户端携带 `idempotency_key`；服务端维护去重缓存（LRU/时间窗）。
 - 返回上次成功的结果或拒绝重复副作用，确保在重试/乱序场景下安全。
+
+去重缓存策略：
+
+- LRU+TTL：键→最近一次成功响应；TTL 与最大重试窗口相同。
+- 写入占位：处理进行中标记以防止并发重复执行（协作式去重）。
+- 结果大小限制：超过阈值的结果仅存储摘要（哈希），客户端重放确认。
 
 ## 背压（Backpressure）
 
@@ -48,9 +66,9 @@ let _ = retry.call("echo", b"hi");
 
 ## 测试与示例命令
 
-- 运行最小重试用例：`cargo test -p c20_distributed --test retry_basic -- --nocapture`
-- 运行管线/背压用例（若存在）：`cargo test -p c20_distributed --test pipeline`
-- Bench（含退避对尾延迟影响）：`cargo bench -p c20_distributed`
+- 运行最小重试用例：`cargo test -p distributed --test retry_basic -- --nocapture`
+- 运行管线/背压用例（若存在）：`cargo test -p distributed --test pipeline`
+- Bench（含退避对尾延迟影响）：`cargo bench -p distributed`
 
 ## 进一步阅读
 
@@ -61,7 +79,7 @@ let _ = retry.call("echo", b"hi");
 ## 相关实验/测试与代码锚点
 
 - 测试：`tests/retry_*.rs`, `tests/pipeline.rs`（若存在/规划）。
-- 基准：与重试/退避相关可并入 `cargo bench -p c20_distributed` 的延迟分布对比。
+- 基准：与重试/退避相关可并入 `cargo bench -p distributed` 的延迟分布对比。
 - 代码锚点：`transport::{InMemoryRpcServer, InMemoryRpcClient, RetryClient, RetryPolicy}`；与 `scheduling::{TimerService}` 协作实现超时与退避。
 
 ## 练习与思考

@@ -1,8 +1,8 @@
-# 实验指南（c20_distributed）
+# 实验指南（distributed）
 
 1) 复制与一致性
 
-   - 运行：`cargo test -p c20_distributed --test replication_local`
+   - 运行：`cargo test -p distributed --test replication_local`
    - 前置：确保启用默认特性；无网络依赖。
    - 步骤：观察不同 `ConsistencyLevel` 的 `required_acks` 与写入成功/失败条件；注入少量失败（若测试覆盖）。
    - 期望输出：在 Quorum/Strong 下，ACK 达阈值前不应标记提交；Eventual 可能提前返回且读到旧值。
@@ -10,7 +10,7 @@
 
 2) Saga 补偿
 
-   - 运行：`cargo test -p c20_distributed --test saga` 或示例 `cargo run -p c20_distributed --example e2e_saga`
+   - 运行：`cargo test -p distributed --test saga` 或示例 `cargo run -p distributed --example e2e_saga`
    - 前置：`storage::IdempotencyStore` 可用；示例会模拟一步失败。
    - 步骤：触发第二步失败，验证补偿逆序执行；重复触发补偿以验证幂等。
    - 期望输出：最终不变式保持（例如余额/库存守恒）；重复补偿无额外副作用。
@@ -18,7 +18,7 @@
 
 3) 一致性哈希与再均衡
 
-   - 运行：`cargo test -p c20_distributed --test hashring_properties`
+   - 运行：`cargo test -p distributed --test hashring_properties`
    - 前置：配置虚拟节点数（如 16/32）。
    - 步骤：扩容 1 个节点，采样大量键并统计迁移比例。
    - 期望输出：迁移比例接近 1/N（含小样本波动）；倾斜度随虚拟节点数增大而降低。
@@ -26,7 +26,7 @@
 
 4) SWIM 探测
 
-   - 运行：`cargo test -p c20_distributed --test swim_pingreq -- --nocapture`
+   - 运行：`cargo test -p distributed --test swim_pingreq -- --nocapture`
    - 前置：启用间接探测；设置合适的超时与 fanout。
    - 步骤：对一个节点故意丢弃直接探测，观察 `ping-req` 间接成功事件。
    - 期望输出：间接探测成功率较直接高；Suspect→Confirm Dead 的时间分布可观测。
@@ -34,7 +34,7 @@
 
 5) 基准（Criterion）
 
-   - 运行：`cargo bench -p c20_distributed`
+   - 运行：`cargo bench -p distributed`
    - 前置：安装 Criterion；禁用不必要的日志以减少干扰。
    - 步骤：运行 `ack_quorum_table` 与哈希环再均衡基准。
    - 期望输出：输出摘要包含 P50/P95/P99；不同 N 与 Level 的对比明显。
@@ -46,9 +46,9 @@
 - 一键执行（建议本地 PowerShell）：
 
 ```powershell
-cargo test -p c20_distributed --all-features -- --nocapture
-cargo run -p c20_distributed --example e2e_saga
-cargo bench -p c20_distributed
+cargo test -p distributed --all-features -- --nocapture
+cargo run -p distributed --example e2e_saga
+cargo bench -p distributed
 ```
 
 ---
@@ -58,7 +58,7 @@ cargo bench -p c20_distributed
 - 固定随机种子：
 
 ```powershell
-$env:RUST_TEST_THREADS=1; $env:RUST_LOG="info,c20_distributed=debug"; $env:RUST_BACKTRACE=1
+$env:RUST_TEST_THREADS=1; $env:RUST_LOG="info,distributed=debug"; $env:RUST_BACKTRACE=1
 # 对使用 rand 的测试，可通过环境变量或测试参数注入 SEED
 ```
 

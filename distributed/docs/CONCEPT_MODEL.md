@@ -59,14 +59,14 @@
 
 ## 示例导航
 
-- 复制与一致性：`cargo test -p c20_distributed --test replication_local`
-- 哈希与再均衡：`cargo test -p c20_distributed --test hashring_properties`
-- Saga 补偿：`cargo test -p c20_distributed --test saga` 或 `cargo run -p c20_distributed --example e2e_saga`
+- 复制与一致性：`cargo test -p distributed --test replication_local`
+- 哈希与再均衡：`cargo test -p distributed --test hashring_properties`
+- Saga 补偿：`cargo test -p distributed --test saga` 或 `cargo run -p distributed --example e2e_saga`
 
 ## 🔗 快速导航
 
 - 模型理论：`../../formal_rust/language/18_model/01_model_theory.md`
-- AI系统：`../c19_ai/docs/FAQ.md`
+- AI系统：`../ai/docs/FAQ.md`
 - WebAssembly：`../../formal_rust/language/16_webassembly/FAQ.md`
 - IoT系统：`../../formal_rust/language/17_iot/FAQ.md`
 - 区块链：`../../formal_rust/language/15_blockchain/FAQ.md`
@@ -80,6 +80,6 @@
 
 - 文档：`WIKI_MAPPING.md`、`COURSE_ALIGNMENT.md`、`EXPERIMENT_GUIDE.md`、`ROADMAP.md`
 - 命令：
-  - 测试：`cargo test -p c20_distributed -- --nocapture`
-  - 示例：`cargo run -p c20_distributed --example e2e_saga`
-  - 基准：`cargo bench -p c20_distributed`
+  - 测试：`cargo test -p distributed -- --nocapture`
+  - 示例：`cargo run -p distributed --example e2e_saga`
+  - 基准：`cargo bench -p distributed`

@@ -1,8 +1,8 @@
-# c20_distributed 项目最终改进报告 2025
+# distributed 项目最终改进报告 2025
 
 ## 项目概述
 
-c20_distributed 是一个基于 Rust 1.89 的分布式系统库，提供了完整的分布式系统基础能力。本次改进显著增强了项目的功能性和实用性。
+distributed 是一个基于 Rust 1.89 的分布式系统库，提供了完整的分布式系统基础能力。本次改进显著增强了项目的功能性和实用性。
 
 ## 主要改进内容
 
@@ -190,7 +190,7 @@ c20_distributed 是一个基于 Rust 1.89 的分布式系统库，提供了完�
 ### 分布式锁使用
 
 ```rust
-use c20_distributed::{DistributedLockManager, DistributedMutex};
+use distributed::{DistributedLockManager, DistributedMutex};
 
 let manager = Arc::new(DistributedLockManager::new());
 let mutex = DistributedMutex::new(
@@ -209,7 +209,7 @@ if mutex.try_lock(Duration::from_secs(5), Duration::from_secs(30)).await? {
 ### 监控系统使用
 
 ```rust
-use c20_distributed::{MetricCollector, PerformanceMonitor};
+use distributed::{MetricCollector, PerformanceMonitor};
 
 let mut collector = MetricCollector::new();
 let monitor = PerformanceMonitor::new(&mut collector);
@@ -223,7 +223,7 @@ monitor.set_active_connections(100.0);
 ### 批量RPC调用
 
 ```rust
-use c20_distributed::{InMemoryRpcClient, RpcRequest};
+use distributed::{InMemoryRpcClient, RpcRequest};
 
 let client = InMemoryRpcClient::new(server);
 let requests = vec![
@@ -256,7 +256,7 @@ let responses = client.call_batch(requests).await?;
 
 ## 总结
 
-本次改进显著提升了 c20_distributed 项目的功能完整性和实用性：
+本次改进显著提升了 distributed 项目的功能完整性和实用性：
 
 1. **功能完整性**：从基础分布式组件扩展为功能完整的分布式系统库
 2. **性能优化**：通过批量操作、连接池等技术显著提升性能

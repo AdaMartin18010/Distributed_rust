@@ -4,7 +4,7 @@
 
 ## 目录结构
 
-```
+```text
 solutions/
 ├── foundations-datafusion/     # Foundations + DataFusion 方案
 │   ├── Cargo.toml             # 项目配置

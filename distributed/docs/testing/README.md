@@ -28,6 +28,7 @@
   - [🔍 一致性测试](#-一致性测试)
     - [1. 线性化测试](#1-线性化测试)
     - [2. 最终一致性测试](#2-最终一致性测试)
+  - [🧪 Jepsen 思路下的最小模板](#-jepsen-思路下的最小模板)
   - [🛠️ 测试工具](#️-测试工具)
     - [1. 测试集群](#1-测试集群)
     - [2. 混沌引擎](#2-混沌引擎)
@@ -37,7 +38,6 @@
     - [3. 测试环境隔离](#3-测试环境隔离)
   - [🔗 相关资源](#-相关资源)
   - [🆘 获取帮助](#-获取帮助)
-
 
 ## 🎯 测试策略概览
 
@@ -70,8 +70,8 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use c20_distributed::replication::LocalReplicator;
-    use c20_distributed::consistency::ConsistencyLevel;
+    use distributed::replication::LocalReplicator;
+    use distributed::consistency::ConsistencyLevel;
     
     #[tokio::test]
     async fn test_replication_success() {
@@ -441,6 +441,19 @@ async fn test_linearizability() {
 }
 ```
 
+小历史（small history）示例：
+
+```rust
+// 两写两读的最小历史，验证线性化可满足的顺序是否存在
+let ops = vec![
+  Op::write("k", "v1"),
+  Op::read("k"),
+  Op::write("k", "v2"),
+  Op::read("k"),
+];
+assert!(LinearizabilityChecker::new().verify(&ops));
+```
+
 ### 2. 最终一致性测试
 
 ```rust
@@ -479,6 +492,14 @@ async fn test_eventual_consistency() {
     assert!(attempts < max_attempts, "最终一致性未达成");
 }
 ```
+
+## 🧪 Jepsen 思路下的最小模板
+
+- 生成器：并发执行 `write/read` 混合操作，注入分区/重启/时钟抖动。
+- 破坏器：在周期内随机触发 `partition/bridge/toggle`。
+- 检查器：线性化或会话保证，以及最终一致的收敛性判定（超时窗口）。
+
+随机种子管理：固定 `SEED` 环境变量，记录于测试输出，失败时可重放。
 
 ## 🛠️ 测试工具
 
@@ -711,8 +732,8 @@ impl TestEnvironment {
 
 ## 🆘 获取帮助
 
-- **GitHub Issues**: [报告问题](https://github.com/your-org/c20_distributed/issues)
-- **Discussions**: [讨论交流](https://github.com/your-org/c20_distributed/discussions)
+- **GitHub Issues**: [报告问题](https://github.com/your-org/distributed/issues)
+- **Discussions**: [讨论交流](https://github.com/your-org/distributed/discussions)
 - **Stack Overflow**: [技术问答](https://stackoverflow.com/questions/tagged/c20-distributed)
 
 ---

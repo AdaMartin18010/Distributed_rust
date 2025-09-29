@@ -1,6 +1,6 @@
 # 示例代码中心
 
-欢迎来到 `c20_distributed` 的示例代码中心！这里提供了丰富的示例代码，帮助您快速理解和掌握分布式系统的核心概念和实现。
+欢迎来到 `distributed` 的示例代码中心！这里提供了丰富的示例代码，帮助您快速理解和掌握分布式系统的核心概念和实现。
 
 ## 📚 示例分类
 
@@ -73,8 +73,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-org/c20_distributed.git
-cd c20_distributed
+git clone https://github.com/your-org/distributed.git
+cd distributed
 
 # 运行 Hello World 示例
 cargo run --example hello_world
@@ -104,12 +104,12 @@ cargo run --example transactions_*
 
 ```rust
 // examples/basic/hello_world.rs
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::replication::LocalReplicator;
+use distributed::consistency::ConsistencyLevel;
+use distributed::replication::LocalReplicator;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 c20_distributed Hello World!");
+    println!("🚀 distributed Hello World!");
     
     // 创建本地复制器
     let replicator = LocalReplicator::new(3, 2, 2);
@@ -129,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 // examples/consensus/raft_cluster.rs
-use c20_distributed::consensus_raft::{RaftNode, RaftConfig};
+use distributed::consensus_raft::{RaftNode, RaftConfig};
 use std::time::Duration;
 
 #[tokio::main]
@@ -170,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 // examples/transactions/saga_pattern.rs
-use c20_distributed::transactions::{Saga, SagaStep};
+use distributed::transactions::{Saga, SagaStep};
 
 // 支付步骤
 struct PaymentStep {
@@ -264,7 +264,7 @@ touch examples/custom/my_example.rs
 
 ```rust
 // examples/custom/my_example.rs
-use c20_distributed::{
+use distributed::{
     consistency::ConsistencyLevel,
     replication::LocalReplicator,
     // 添加其他需要的模块
@@ -294,8 +294,8 @@ cargo run --example my_example
 ```rust
 // examples/performance/benchmark.rs
 use criterion::{criterion_group, criterion_main, Criterion};
-use c20_distributed::replication::LocalReplicator;
-use c20_distributed::consistency::ConsistencyLevel;
+use distributed::replication::LocalReplicator;
+use distributed::consistency::ConsistencyLevel;
 
 fn benchmark_replication(c: &mut Criterion) {
     let mut group = c.benchmark_group("replication");
@@ -333,7 +333,7 @@ cargo bench
 #[cfg(test)]
 mod tests {
     use super::*;
-    use c20_distributed::testing::TestCluster;
+    use distributed::testing::TestCluster;
     
     #[tokio::test]
     async fn test_basic_replication() {
@@ -416,8 +416,8 @@ async fn test_distributed_transaction() {
 
 ## 🆘 获取帮助
 
-- **GitHub Issues**: [报告问题](https://github.com/your-org/c20_distributed/issues)
-- **Discussions**: [讨论交流](https://github.com/your-org/c20_distributed/discussions)
+- **GitHub Issues**: [报告问题](https://github.com/your-org/distributed/issues)
+- **Discussions**: [讨论交流](https://github.com/your-org/distributed/discussions)
 - **Stack Overflow**: [技术问答](https://stackoverflow.com/questions/tagged/c20-distributed)
 
 ---

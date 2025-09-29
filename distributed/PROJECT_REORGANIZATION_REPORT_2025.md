@@ -1,8 +1,8 @@
-# c20_distributed 项目结构重组报告 2025
+# distributed 项目结构重组报告 2025
 
 ## 重组概述
 
-根据用户要求，我们成功将 c20_distributed 项目按照主题重新组织，创建了更直观、更易理解的文件夹结构。这次重组大大提升了项目的可维护性和开发体验。
+根据用户要求，我们成功将 distributed 项目按照主题重新组织，创建了更直观、更易理解的文件夹结构。这次重组大大提升了项目的可维护性和开发体验。
 
 ## 新的项目结构
 
@@ -175,22 +175,22 @@ mkdir src\core, src\consensus, src\consistency, src\network,
 
 ```rust
 // 使用新的模块结构
-use c20_distributed::network::distributed_lock::{
+use distributed::network::distributed_lock::{
     DistributedLockManager, DistributedMutex
 };
-use c20_distributed::core::{DistributedConfig, DistributedError};
-use c20_distributed::consensus::raft::MinimalRaft;
+use distributed::core::{DistributedConfig, DistributedError};
+use distributed::consensus::raft::MinimalRaft;
 ```
 
 ### 兼容的使用方式（向后兼容）
 
 ```rust
 // 原有代码无需修改，继续可用
-use c20_distributed::{
+use distributed::{
     DistributedLockManager, DistributedMutex,
     DistributedConfig, DistributedError
 };
-use c20_distributed::consensus_raft::MinimalRaft;
+use distributed::consensus_raft::MinimalRaft;
 ```
 
 ## 添加的新功能
@@ -264,7 +264,7 @@ pub async fn basic_distributed_lock_demo() -> Result<(), Box<dyn std::error::Err
 ✅ **可扩展性** - 新功能可以轻松添加到对应主题模块  
 ✅ **文档完整性** - 每个模块都有清晰的功能说明  
 
-这个新的项目结构将为 c20_distributed 的未来发展提供更好的基础，让分布式系统开发变得更加直观和高效。
+这个新的项目结构将为 distributed 的未来发展提供更好的基础，让分布式系统开发变得更加直观和高效。
 
 ---
 

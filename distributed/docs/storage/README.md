@@ -14,21 +14,41 @@
 - 单调性：`last_applied ≤ commit_index ≤ last_log_index` 且单调不减。
 - 匹配性：相同 `(index, term)` 的条目内容必须一致。
 
+### 状态机确定性约束
+
+- 纯函数化 `apply(entry)`: 对同一输入与前置状态，结果必须唯一确定；禁止读取外部非确定源（墙钟/随机）。
+- 顺序一致：按提交顺序应用；禁止跨条目的副作用依赖未提交数据。
+- 幂等语义：在崩溃恢复或重放时重复 `apply` 不得改变最终状态（需结合上层幂等键或日志去重）。
+
 ## 截断与恢复流程
 
 1) 创建快照：冻结 `last_applied` 前的状态机快照，记录元信息（最后索引与任期）。
 2) 截断日志：安全地删除已包含在快照中的前缀日志。
 3) 恢复：先加载最新快照，然后重放快照之后的日志至 `commit_index`。
 
+### 崩溃一致性 checklist
+
+- 启动顺序：先恢复快照→校验日志段校验和→自 `snapshot.last_index+1` 开始回放至 `commit_index`。
+- 原子性：快照写入采用临时文件+原子替换；日志段 rollover 写入尾部校验并 `fsync`。
+- 进度点：在 `commit_index` 增长时落盘持久化，以防恢复时回退提交。
+- 校验：每段包含起止索引、任期与 CRC；不匹配时回滚到最后一致位置并触发日志修复。
+
 ## 接口示例
 
 ```rust
-use c20_distributed::storage::{StateMachineStorage, LogStorage};
+use distributed::storage::{StateMachineStorage, LogStorage};
 
 fn apply_entry<S: StateMachineStorage>(sm: &mut S, entry: &[u8]) {
     sm.apply(entry).expect("apply");
 }
 ```
+
+## 幂等存储接口最佳实践
+
+- 键设计：`(namespace, key, idempotency_key)` 复合键，区分业务空间与请求幂等键。
+- 读写路径：写入前先查询幂等记录；命中则返回上次结果，未命中则占位执行，成功后写回结果。
+- TTL 策略：为幂等记录设置合适 TTL（与最大重试窗口一致），避免无限增长。
+- 一致性：在 `Quorum` 写下，幂等记录与业务状态应在同等或更强持久性级别存储。
 
 ## 与共识/复制的关系
 

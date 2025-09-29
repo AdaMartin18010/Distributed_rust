@@ -9,15 +9,51 @@
 - 拒绝策略：超载时早拒绝，保护尾延迟；结合重试策略避免放大。
 - 客户端退避：指数退避+抖动；读取服务端信号（429/`Overloaded`）。
 
+### 令牌桶 vs 漏桶（对比）
+
+- 令牌桶：允许突发至 `capacity`，长期速率受 `refill_rate` 限制，适合需要吸收瞬时抖动的在线服务。
+- 漏桶：输出速率严格、平滑；突发被排队或丢弃，适合需要稳定带宽的后台任务/批处理。
+- 实践：前端采用令牌桶吸收抖动，后台/出站链路对齐漏桶，二者可级联。
+
+### 令牌桶最小示例
+
+```rust
+pub struct TokenBucket { capacity: u64, tokens: u64, refill_per_ms: f64, last: std::time::Instant }
+impl TokenBucket {
+  pub fn allow(&mut self, now: std::time::Instant) -> bool {
+    let dt = now.duration_since(self.last).as_millis() as f64;
+    self.tokens = (self.tokens as f64 + dt * self.refill_per_ms).min(self.capacity as f64) as u64;
+    self.last = now;
+    if self.tokens > 0 { self.tokens -= 1; true } else { false }
+  }
+}
+```
+
 ## 调度与隔离
 
 - 多级队列：不同租户/优先级分池；保障关键流量。
 - 资源配额与自适应调参：基于实时指标（QPS/延迟/丢弃率）调整权重与并发度。
 
+### 优先级调度示意
+
+- 多队列：`high/normal/low`，按配额轮询；当高优先级积压时抢占低优先级。
+- 动态权重：依据 `p95_latency` 超阈值提升高优先级权重，恢复后逐步回落（hysteresis）。
+
 ## 截止时间传递
 
 - 请求携带总预算（如 200ms）；每次 RPC 更新剩余预算，避免无界排队与重试风暴。
 - 与 `transport` 的 `RetryPolicy` 协同，按剩余预算计算下次超时与退避。
+
+### 在 RPC 层的传播细则
+
+- Header/Context：在入口计算 `deadline_at` 并放入上下文；跨服务调用时透传并在每跳更新剩余时间。
+- 超时预算分配：`rpc_timeout = min(deadline_left * α, upper_bound)`，α 建议 0.5~0.8；重试累计不得超过预算。
+- 失败分类：`Timeout/Overloaded/Unavailable` 才可重试；`Invalid`/`PermissionDenied` 等立即失败，不消耗预算。
+
+### 参数耦合指南（与共识心跳/选举）
+
+- 心跳周期 Thb 与选举超时 E：建议 E ∈ [2.5Thb, 5Thb]，避免同时竞选。
+- Deadline 预算 B 与重试次数 R：保证 Σ(超时+退避) ≤ B；若 E 接近 B，读写应降级以避免误判失败。
 
 ## 进一步阅读
 
@@ -41,7 +77,7 @@
 最小示例：
 
 ```rust
-use c20_distributed::scheduling::LogicalClock;
+use distributed::scheduling::LogicalClock;
 
 fn handle_send<C: LogicalClock>(clock: &mut C) {
     let ts = clock.tick();
@@ -65,7 +101,7 @@ fn handle_recv<C: LogicalClock>(clock: &mut C, peer_ts: u64) {
 示例：
 
 ```rust
-use c20_distributed::scheduling::TimerService;
+use distributed::scheduling::TimerService;
 
 fn start_heartbeat<T: TimerService>(timer: &T, period_ms: u64, mut send_beat: impl FnMut() + Send + 'static) {
     timer.every_ms(period_ms, move || {
@@ -84,10 +120,23 @@ fn start_heartbeat<T: TimerService>(timer: &T, period_ms: u64, mut send_beat: im
   - 线性+抖动：低复杂度且较稳健。
 - 与代码：`tests/retry.rs`, `tests/retry_backoff.rs` 展示了典型策略与边界。
 
+### 抖动策略示例（Rust）
+
+```rust
+fn equal_jitter(base: u64, attempt: u32, max: u64) -> u64 {
+    use rand::{thread_rng, Rng};
+    let exp = base.saturating_mul(1u64.saturating_shl(attempt.min(31)));
+    let cap = exp.min(max);
+    let half = cap / 2;
+    let jitter: u64 = thread_rng().gen_range(0..=half);
+    half + jitter
+}
+```
+
 参考实现（伪代码接口）：
 
 ```rust
-use c20_distributed::transport::{RetryPolicy};
+use distributed::transport::{RetryPolicy};
 
 let policy = RetryPolicy {
     max_retries: 5,
