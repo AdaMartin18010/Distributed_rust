@@ -3,6 +3,30 @@
 - 背压、限流、优先级、公平性、队列与隔离
 - 延迟预算与截止时间传递（deadline propagation）
 
+## 目录
+
+- [调度与流控（Scheduling \& Flow Control）](#调度与流控scheduling--flow-control)
+  - [目录](#目录)
+  - [背压与限流](#背压与限流)
+    - [令牌桶 vs 漏桶（对比）](#令牌桶-vs-漏桶对比)
+    - [令牌桶最小示例](#令牌桶最小示例)
+  - [调度与隔离](#调度与隔离)
+    - [优先级调度示意](#优先级调度示意)
+  - [截止时间传递](#截止时间传递)
+    - [在 RPC 层的传播细则](#在-rpc-层的传播细则)
+    - [参数耦合指南（与共识心跳/选举）](#参数耦合指南与共识心跳选举)
+  - [进一步阅读](#进一步阅读)
+  - [调度（Scheduling）](#调度scheduling)
+  - [逻辑时钟（Logical Clock）](#逻辑时钟logical-clock)
+  - [定时器与心跳（TimerService \& Heartbeat）](#定时器与心跳timerservice--heartbeat)
+  - [重试与退避（Retry \& Backoff）](#重试与退避retry--backoff)
+    - [抖动策略示例（Rust）](#抖动策略示例rust)
+  - [截止时间（Deadline）与取消（Cancellation）](#截止时间deadline与取消cancellation)
+  - [与其它模块的关系](#与其它模块的关系)
+  - [实践建议](#实践建议)
+  - [练习与思考](#练习与思考)
+  - [快速导航](#快速导航)
+
 ## 背压与限流
 
 - 令牌桶/漏桶：控制突发与平均速率；支持优先级队列化。

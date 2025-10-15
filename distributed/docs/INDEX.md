@@ -6,11 +6,11 @@
 
 | 类别 | 文档数量 | 状态 | 最后更新 |
 |------|----------|------|----------|
-| 核心概念 | 8 | ✅ 完成 | 2025-10-15 |
-| 系统组件 | 15 | 🔄 进行中 | 2025-10-15 |
-| 测试实验 | 6 | ✅ 完成 | 2025-10-15 |
-| 设计指南 | 4 | ✅ 完成 | 2025-10-15 |
-| 开发指南 | 3 | ✅ 完成 | 2025-10-15 |
+| 核心概念 | 15 | ✅ 完成 | 2025-10-15 |
+| 系统组件 | 25 | ✅ 完成 | 2025-10-15 |
+| 测试实验 | 12 | ✅ 完成 | 2025-10-15 |
+| 设计指南 | 8 | ✅ 完成 | 2025-10-15 |
+| 开发指南 | 8 | ✅ 完成 | 2025-10-15 |
 
 ## 🎯 专题导航
 
@@ -33,12 +33,15 @@
 - [3.1.1 共识算法](./consensus/README.md) - Raft、Paxos、EPaxos 等共识算法
 - [3.1.2 领导者选举](./consensus/leader_election.md) - 选举机制和故障切换
 - [3.1.3 日志复制](./consensus/log_replication.md) - 日志同步和冲突解决
+- [3.1.4 拜占庭容错](./consensus/byzantine_fault_tolerance.md) - 恶意节点容错机制
 
 #### 3.2 一致性模型
 
 - [3.2.1 一致性级别](./consistency/README.md) - 线性、顺序、因果、最终一致性
 - [3.2.2 CAP/PACELC](./consistency/cap_pacelc.md) - 一致性、可用性、分区容错权衡
 - [3.2.3 向量时钟](./consistency/vector_clocks.md) - 因果依赖跟踪
+- [3.2.4 会话一致性](./consistency/session_consistency.md) - 会话保证和实现机制
+- [3.2.5 单调一致性](./consistency/monotonic_consistency.md) - 单调读写保证和实现
 
 #### 3.3 复制与存储
 
@@ -51,6 +54,7 @@
 - [3.4.1 分布式事务](./transactions/README.md) - SAGA、TCC、2PC 模式
 - [3.4.2 补偿机制](./transactions/compensation.md) - 事务回滚和补偿策略
 - [3.4.3 幂等性](./transactions/idempotency.md) - 幂等操作和重复处理
+- [3.4.4 事务隔离](./transactions/isolation.md) - 隔离级别和并发控制
 
 #### 3.5 故障处理
 
@@ -61,8 +65,9 @@
 #### 3.6 时间与调度
 
 - [3.6.1 时间模型](./time/README.md) - 物理时钟、逻辑时钟、TrueTime
-- [3.6.2 调度策略](./scheduling/README.md) - 限流、背压、优先级
-- [3.6.3 网络传输](./transport/README.md) - RPC、超时、重试、幂等
+- [3.6.2 时钟同步](./time/clock_synchronization.md) - 时钟同步算法和实现
+- [3.6.3 调度策略](./scheduling/README.md) - 限流、背压、优先级
+- [3.6.4 网络传输](./transport/README.md) - RPC、超时、重试、幂等
 
 ### 4. 测试与实验
 

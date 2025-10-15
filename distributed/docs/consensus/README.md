@@ -7,6 +7,28 @@
 - 接口：`ConsensusApi`、`ConsensusRole`
 - 实践要点：日志复制、领导者选举、提交/应用、快照
 
+## 目录
+
+- [共识（Consensus）](#共识consensus)
+  - [目录](#目录)
+  - [安全性（Safety）与活性（Liveness）](#安全性safety与活性liveness)
+  - [选举超时与心跳](#选举超时与心跳)
+  - [Raft（feature: consensus-raft）](#raftfeature-consensus-raft)
+    - [日志匹配与提交](#日志匹配与提交)
+    - [快照与截断](#快照与截断)
+  - [Paxos / Multi-Paxos / EPaxos 对比](#paxos--multi-paxos--epaxos-对比)
+  - [实验指引（对齐课程）](#实验指引对齐课程)
+    - [线性化读实现指引（read\_index / lease read）](#线性化读实现指引read_index--lease-read)
+  - [进一步阅读](#进一步阅读)
+  - [练习与思考](#练习与思考)
+  - [快速导航](#快速导航)
+  - [API 映射与代码定位](#api-映射与代码定位)
+  - [如何运行与测试](#如何运行与测试)
+  - [常见问题与排错（FAQ/Troubleshooting）](#常见问题与排错faqtroubleshooting)
+  - [配置与特性开关](#配置与特性开关)
+  - [示例：线性化读（Read Index）骨架](#示例线性化读read-index骨架)
+  - [进一步实验建议](#进一步实验建议)
+
 ## 安全性（Safety）与活性（Liveness）
 
 - 安全性：不产生相互矛盾的提交。Raft 依靠多数派日志匹配与领导者限制（leader completeness）保证。

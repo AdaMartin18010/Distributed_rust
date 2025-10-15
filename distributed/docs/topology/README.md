@@ -5,6 +5,27 @@
 - Sharding、Consistent Hashing、Ring、Re-sharding
 - 接口：`ShardId`, `ClusterTopology`
 
+## 目录
+
+- [拓扑（Topology）](#拓扑topology)
+  - [目录](#目录)
+  - [Consistent Hashing](#consistent-hashing)
+    - [虚节点（Virtual Nodes）](#虚节点virtual-nodes)
+      - [倾斜实验与图示（建议）](#倾斜实验与图示建议)
+    - [重平衡（Rebalance）与代价](#重平衡rebalance与代价)
+      - [迁移比例推导（要点）](#迁移比例推导要点)
+    - [API 速览](#api-速览)
+    - [故障域（Failure Domain）与放置](#故障域failure-domain与放置)
+    - [热点迁移与倾斜（Skew）](#热点迁移与倾斜skew)
+      - [粘性路由（Session Affinity）与副作用](#粘性路由session-affinity与副作用)
+  - [评估指标与命令](#评估指标与命令)
+  - [进一步阅读](#进一步阅读)
+  - [与放置/路由接口](#与放置路由接口)
+  - [实验入口与评估指标](#实验入口与评估指标)
+  - [代码锚点](#代码锚点)
+  - [练习与思考](#练习与思考)
+  - [快速导航](#快速导航)
+
 ## Consistent Hashing
 
 - 结构：`ConsistentHashRing { ring: BTreeMap<u64, String>, replicas }`
