@@ -7,10 +7,10 @@ authors = ["Rust AI Team"]
 license = "MIT"
 
 [dependencies]
-# 核心依赖 - 2025年1月最新版本
-foundations = { version = "0.3", features = ["telemetry", "settings"] }
+# 核心依赖 - 2025年10月最新版本
+foundations = { version = "5.1.0", features = ["telemetry", "settings"] }
 datafusion = "42"          # 2025-01 对齐
-tokio = { version = "1.47.1", features = ["full"] }
+tokio = { version = "1.48.0", features = ["full"] }
 arrow-flight = "53"
 tonic = "0.14.2"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -22,7 +22,7 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 
 # 错误处理
 anyhow = "1.0.100"
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 
 # 配置管理
 config = "0.15.16"

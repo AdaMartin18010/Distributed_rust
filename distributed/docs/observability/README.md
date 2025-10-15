@@ -1,703 +1,855 @@
-# 监控与可观测性指南
+# 可观测性
 
-> 关键不变量：RED/USE 指标分层落地；追踪与日志上下文关联；采样优先保留错误/慢调用。
+> 分布式系统中的监控、追踪、日志和指标收集
 
-本文档提供了分布式系统监控与可观测性的全面指南，包括指标收集、日志聚合、链路追踪和告警系统。
+## 目录
 
-## 🎯 可观测性三大支柱
+- [可观测性](#可观测性)
+  - [目录](#目录)
+  - [📋 概述](#-概述)
+  - [🎯 核心概念](#-核心概念)
+    - [可观测性三大支柱](#可观测性三大支柱)
+    - [指标类型](#指标类型)
+  - [📊 指标收集](#-指标收集)
+    - [指标收集器](#指标收集器)
+    - [计数器实现](#计数器实现)
+    - [直方图实现](#直方图实现)
+  - [🔍 分布式追踪](#-分布式追踪)
+    - [追踪上下文](#追踪上下文)
+    - [跨度 (Span) 实现](#跨度-span-实现)
+    - [追踪器实现](#追踪器实现)
+  - [📝 日志管理](#-日志管理)
+    - [结构化日志](#结构化日志)
+    - [JSON 格式化器](#json-格式化器)
+  - [🔍 健康检查](#-健康检查)
+    - [健康检查器](#健康检查器)
+    - [具体健康检查实现](#具体健康检查实现)
+  - [🧪 测试策略](#-测试策略)
+    - [可观测性测试](#可观测性测试)
+  - [📚 进一步阅读](#-进一步阅读)
+  - [🔗 相关文档](#-相关文档)
 
-### 1. 指标 (Metrics)
+## 📋 概述
 
-- **RED 指标**: 请求率 (Rate)、错误率 (Error)、持续时间 (Duration)
-- **USE 指标**: 利用率 (Utilization)、饱和度 (Saturation)、错误率 (Error)
+可观测性是分布式系统的重要特性，通过监控、追踪、日志和指标收集，帮助开发者理解系统行为、诊断问题和优化性能。
 
-> 选择指引：面向外部接口以 RED 为主、面向系统资源以 USE 为主；两者互补。
+## 🎯 核心概念
 
-#### 分层指标建议
+### 可观测性三大支柱
 
-- RPC 层：`rpc.requests`, `rpc.errors`, `rpc.latency.ms{op}`
-- 共识层：`raft.append.entries`, `raft.commit.index`, `raft.leader.elections`
-- 复制层：`replica.acks`, `replica.lag.ms`, `replica.repair.count`
-- 存储层：`wal.fsync.ms`, `snapshot.bytes`, `segment.crc.errors`
-- 补偿层：`saga.steps`, `saga.compensate.count`, `saga.failure.matrix{kind}`
+```rust
+#[derive(Debug, Clone)]
+pub enum ObservabilityType {
+    Metrics,    // 指标
+    Traces,     // 追踪
+    Logs,       // 日志
+}
 
-仪表设计建议：
+pub struct ObservabilityConfig {
+    pub metrics_enabled: bool,
+    pub tracing_enabled: bool,
+    pub logging_enabled: bool,
+    pub metrics_port: u16,
+    pub tracing_endpoint: String,
+    pub log_level: String,
+}
+```
 
-- 为 P50/P95/P99 延迟使用直方图桶，区分读取/写入/共识路径；标签维度受控，避免高基数。
+### 指标类型
 
-### 2. 日志 (Logs)
+```rust
+#[derive(Debug, Clone)]
+pub enum MetricType {
+    Counter,    // 计数器
+    Gauge,      // 仪表盘
+    Histogram,  // 直方图
+    Summary,    // 摘要
+}
 
-- **结构化日志**: 使用 JSON 格式，便于解析和查询
-- **日志级别**: Trace, Debug, Info, Warn, Error, Fatal
-- **上下文信息**: 包含 trace_id, span_id, user_id 等
-  - 与追踪关联：在日志条目中注入 trace/span 上下文，便于跨系统排障。
-
-### 3. 链路追踪 (Tracing)
-
-- **分布式追踪**: 跨服务调用链追踪
-- **性能分析**: 识别性能瓶颈和热点
-- **错误定位**: 快速定位错误根源
-  - 采样策略：优先保留错误与慢调用，降低低价值流量；导出与存储遵循数据保留策略。
+#[derive(Debug, Clone)]
+pub struct Metric {
+    pub name: String,
+    pub metric_type: MetricType,
+    pub value: f64,
+    pub labels: HashMap<String, String>,
+    pub timestamp: u64,
+}
+```
 
 ## 📊 指标收集
 
-### 1. 基础指标收集器
+### 指标收集器
 
 ```rust
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
-#[derive(Debug, Clone)]
-pub struct Metrics {
-    pub counters: Arc<RwLock<HashMap<String, AtomicU64>>>,
-    pub gauges: Arc<RwLock<HashMap<String, AtomicU64>>>,
-    pub histograms: Arc<RwLock<HashMap<String, Histogram>>>,
+pub struct MetricsCollector {
+    metrics: HashMap<String, Box<dyn Metric>>,
+    registry: MetricRegistry,
 }
 
-impl Metrics {
+pub trait Metric {
+    fn get_name(&self) -> &str;
+    fn get_type(&self) -> MetricType;
+    fn get_value(&self) -> f64;
+    fn get_labels(&self) -> &HashMap<String, String>;
+    fn update(&mut self, value: f64);
+}
+
+impl MetricsCollector {
     pub fn new() -> Self {
         Self {
-            counters: Arc::new(RwLock::new(HashMap::new())),
-            gauges: Arc::new(RwLock::new(HashMap::new())),
-            histograms: Arc::new(RwLock::new(HashMap::new())),
+            metrics: HashMap::new(),
+            registry: MetricRegistry::new(),
         }
     }
-
-    pub async fn increment_counter(&self, name: &str, value: u64) {
-        let mut counters = self.counters.write().await;
-        counters
-            .entry(name.to_string())
-            .or_insert_with(|| AtomicU64::new(0))
-            .fetch_add(value, Ordering::SeqCst);
-    }
-
-    pub async fn set_gauge(&self, name: &str, value: u64) {
-        let mut gauges = self.gauges.write().await;
-        gauges
-            .entry(name.to_string())
-            .or_insert_with(|| AtomicU64::new(0))
-            .store(value, Ordering::SeqCst);
-    }
-
-    pub async fn record_histogram(&self, name: &str, value: f64) {
-        let mut histograms = self.histograms.write().await;
-        histograms
-            .entry(name.to_string())
-            .or_insert_with(|| Histogram::new())
-            .record(value);
-    }
-}
-```
-
-### 2. RED 指标实现
-
-```rust
-#[derive(Debug)]
-pub struct RedMetrics {
-    metrics: Metrics,
-}
-
-impl RedMetrics {
-    pub fn new() -> Self {
-        Self {
-            metrics: Metrics::new(),
-        }
-    }
-
-    // Rate: 请求率
-    pub async fn record_request(&self, endpoint: &str, method: &str) {
-        let metric_name = format!("requests_total{{endpoint=\"{}\",method=\"{}\"}}", endpoint, method);
-        self.metrics.increment_counter(&metric_name, 1).await;
-    }
-
-    // Error: 错误率
-    pub async fn record_error(&self, endpoint: &str, method: &str, status_code: u16) {
-        let metric_name = format!("errors_total{{endpoint=\"{}\",method=\"{}\",status=\"{}\"}}", 
-                                 endpoint, method, status_code);
-        self.metrics.increment_counter(&metric_name, 1).await;
-    }
-
-    // Duration: 持续时间
-    pub async fn record_duration(&self, endpoint: &str, method: &str, duration: Duration) {
-        let metric_name = format!("request_duration_seconds{{endpoint=\"{}\",method=\"{}\"}}", 
-                                 endpoint, method);
-        self.metrics.record_histogram(&metric_name, duration.as_secs_f64()).await;
-    }
-}
-```
-
-### 3. USE 指标实现
-
-```rust
-#[derive(Debug)]
-pub struct UseMetrics {
-    metrics: Metrics,
-}
-
-impl UseMetrics {
-    pub fn new() -> Self {
-        Self {
-            metrics: Metrics::new(),
-        }
-    }
-
-    // Utilization: 利用率
-    pub async fn record_cpu_utilization(&self, node_id: &str, utilization: f64) {
-        let metric_name = format!("cpu_utilization{{node=\"{}\"}}", node_id);
-        self.metrics.set_gauge(&metric_name, (utilization * 100.0) as u64).await;
-    }
-
-    pub async fn record_memory_utilization(&self, node_id: &str, utilization: f64) {
-        let metric_name = format!("memory_utilization{{node=\"{}\"}}", node_id);
-        self.metrics.set_gauge(&metric_name, (utilization * 100.0) as u64).await;
-    }
-
-    // Saturation: 饱和度
-    pub async fn record_queue_length(&self, queue_name: &str, length: usize) {
-        let metric_name = format!("queue_length{{queue=\"{}\"}}", queue_name);
-        self.metrics.set_gauge(&metric_name, length as u64).await;
-    }
-
-    // Error: 错误率
-    pub async fn record_system_error(&self, component: &str, error_type: &str) {
-        let metric_name = format!("system_errors_total{{component=\"{}\",type=\"{}\"}}", 
-                                 component, error_type);
-        self.metrics.increment_counter(&metric_name, 1).await;
-    }
-}
-```
-
-## 📝 日志聚合
-
-### 1. 结构化日志配置
-
-```rust
-use tracing::{info, warn, error, debug};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-
-pub fn init_logging() {
-    tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env())
-        .with(tracing_subscriber::fmt::layer()
-            .json()
-            .with_current_span(true)
-            .with_span_list(false)
-        )
-        .init();
-}
-
-// 使用示例
-pub async fn process_request(request: &Request) -> Result<Response, Error> {
-    let span = tracing::info_span!("process_request", 
-                                  request_id = %request.id,
-                                  user_id = %request.user_id);
-    let _enter = span.enter();
-
-    info!("开始处理请求");
     
-    match validate_request(request).await {
-        Ok(_) => {
-            debug!("请求验证通过");
-            let response = execute_request(request).await?;
-            info!("请求处理完成", duration_ms = response.duration.as_millis());
-            Ok(response)
+    pub fn register_metric(&mut self, name: String, metric: Box<dyn Metric>) {
+        self.metrics.insert(name, metric);
+    }
+    
+    pub fn increment_counter(&mut self, name: &str, labels: HashMap<String, String>) {
+        if let Some(metric) = self.metrics.get_mut(name) {
+            metric.update(1.0);
         }
-        Err(e) => {
-            warn!("请求验证失败", error = %e);
-            Err(e)
+    }
+    
+    pub fn set_gauge(&mut self, name: &str, value: f64, labels: HashMap<String, String>) {
+        if let Some(metric) = self.metrics.get_mut(name) {
+            metric.update(value);
         }
+    }
+    
+    pub fn record_histogram(&mut self, name: &str, value: f64, labels: HashMap<String, String>) {
+        if let Some(metric) = self.metrics.get_mut(name) {
+            metric.update(value);
+        }
+    }
+    
+    pub fn get_metrics(&self) -> Vec<Metric> {
+        self.metrics.values()
+            .map(|m| Metric {
+                name: m.get_name().to_string(),
+                metric_type: m.get_type(),
+                value: m.get_value(),
+                labels: m.get_labels().clone(),
+                timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64,
+            })
+            .collect()
     }
 }
 ```
 
-### 2. 日志收集器
+### 计数器实现
 
 ```rust
-use std::sync::mpsc;
-use std::thread;
-
-pub struct LogCollector {
-    sender: mpsc::Sender<LogEntry>,
+pub struct Counter {
+    name: String,
+    value: f64,
+    labels: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct LogEntry {
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    pub level: String,
-    pub message: String,
-    pub fields: HashMap<String, serde_json::Value>,
-    pub span_context: Option<SpanContext>,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SpanContext {
-    pub trace_id: String,
-    pub span_id: String,
-}
-
-impl LogCollector {
-    pub fn new() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        
-        // 启动日志处理线程
-        thread::spawn(move || {
-            Self::process_logs(receiver);
-        });
-        
-        Self { sender }
+impl Counter {
+    pub fn new(name: String, labels: HashMap<String, String>) -> Self {
+        Self {
+            name,
+            value: 0.0,
+            labels,
+        }
     }
+    
+    pub fn inc(&mut self) {
+        self.value += 1.0;
+    }
+    
+    pub fn inc_by(&mut self, amount: f64) {
+        self.value += amount;
+    }
+    
+    pub fn get_value(&self) -> f64 {
+        self.value
+    }
+}
 
-    fn process_logs(receiver: mpsc::Receiver<LogEntry>) {
-        let mut batch = Vec::new();
-        let mut last_flush = std::time::Instant::now();
+impl Metric for Counter {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+    
+    fn get_type(&self) -> MetricType {
+        MetricType::Counter
+    }
+    
+    fn get_value(&self) -> f64 {
+        self.value
+    }
+    
+    fn get_labels(&self) -> &HashMap<String, String> {
+        &self.labels
+    }
+    
+    fn update(&mut self, value: f64) {
+        self.value += value;
+    }
+}
+```
+
+### 直方图实现
+
+```rust
+pub struct Histogram {
+    name: String,
+    buckets: Vec<f64>,
+    counts: Vec<u64>,
+    sum: f64,
+    count: u64,
+    labels: HashMap<String, String>,
+}
+
+impl Histogram {
+    pub fn new(name: String, buckets: Vec<f64>, labels: HashMap<String, String>) -> Self {
+        let counts = vec![0; buckets.len()];
         
-        for log_entry in receiver {
-            batch.push(log_entry);
-            
-            // 批量处理或定时刷新
-            if batch.len() >= 100 || last_flush.elapsed() > Duration::from_secs(5) {
-                Self::flush_logs(&mut batch);
-                last_flush = std::time::Instant::now();
+        Self {
+            name,
+            buckets,
+            counts,
+            sum: 0.0,
+            count: 0,
+            labels,
+        }
+    }
+    
+    pub fn observe(&mut self, value: f64) {
+        self.sum += value;
+        self.count += 1;
+        
+        // 更新桶计数
+        for (i, &bucket) in self.buckets.iter().enumerate() {
+            if value <= bucket {
+                self.counts[i] += 1;
             }
         }
     }
-
-    fn flush_logs(batch: &mut Vec<LogEntry>) {
-        if batch.is_empty() {
-            return;
+    
+    pub fn get_percentile(&self, percentile: f64) -> f64 {
+        if self.count == 0 {
+            return 0.0;
         }
-
-        // 发送到日志聚合系统
-        for log_entry in batch.drain(..) {
-            Self::send_to_aggregator(log_entry);
+        
+        let target_count = (self.count as f64 * percentile / 100.0) as u64;
+        let mut current_count = 0;
+        
+        for (i, &count) in self.counts.iter().enumerate() {
+            current_count += count;
+            if current_count >= target_count {
+                return self.buckets[i];
+            }
         }
+        
+        self.buckets.last().unwrap_or(&0.0).clone()
     }
+}
 
-    fn send_to_aggregator(log_entry: LogEntry) {
-        // 发送到 Elasticsearch, Splunk, 或其他日志聚合系统
-        let json = serde_json::to_string(&log_entry).unwrap();
-        println!("LOG: {}", json);
+impl Metric for Histogram {
+    fn get_name(&self) -> &str {
+        &self.name
     }
-
-    pub fn collect_log(&self, entry: LogEntry) {
-        self.sender.send(entry).unwrap_or_else(|_| {
-            eprintln!("日志收集器已关闭");
-        });
+    
+    fn get_type(&self) -> MetricType {
+        MetricType::Histogram
+    }
+    
+    fn get_value(&self) -> f64 {
+        self.sum
+    }
+    
+    fn get_labels(&self) -> &HashMap<String, String> {
+        &self.labels
+    }
+    
+    fn update(&mut self, value: f64) {
+        self.observe(value);
     }
 }
 ```
 
-## 🔍 链路追踪
+## 🔍 分布式追踪
 
-### 1. 分布式追踪器
+### 追踪上下文
 
 ```rust
-use std::sync::Arc;
-use uuid::Uuid;
-
 #[derive(Debug, Clone)]
-pub struct DistributedTracer {
-    service_name: String,
-    collector_endpoint: String,
-    spans: Arc<RwLock<Vec<Span>>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Span {
+pub struct TraceContext {
     pub trace_id: String,
     pub span_id: String,
     pub parent_span_id: Option<String>,
-    pub operation_name: String,
-    pub start_time: chrono::DateTime<chrono::Utc>,
-    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
-    pub tags: HashMap<String, String>,
-    pub logs: Vec<SpanLog>,
+    pub sampled: bool,
+    pub baggage: HashMap<String, String>,
+}
+
+impl TraceContext {
+    pub fn new(trace_id: String, span_id: String) -> Self {
+        Self {
+            trace_id,
+            span_id,
+            parent_span_id: None,
+            sampled: true,
+            baggage: HashMap::new(),
+        }
+    }
+    
+    pub fn with_parent(mut self, parent_span_id: String) -> Self {
+        self.parent_span_id = Some(parent_span_id);
+        self
+    }
+    
+    pub fn with_baggage(mut self, key: String, value: String) -> Self {
+        self.baggage.insert(key, value);
+        self
+    }
+}
+```
+
+### 跨度 (Span) 实现
+
+```rust
+pub struct Span {
+    context: TraceContext,
+    name: String,
+    start_time: Instant,
+    end_time: Option<Instant>,
+    attributes: HashMap<String, String>,
+    events: Vec<SpanEvent>,
+    status: SpanStatus,
 }
 
 #[derive(Debug, Clone)]
-pub struct SpanLog {
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    pub fields: HashMap<String, String>,
+pub struct SpanEvent {
+    pub name: String,
+    pub timestamp: Instant,
+    pub attributes: HashMap<String, String>,
 }
 
-impl DistributedTracer {
-    pub fn new(service_name: String, collector_endpoint: String) -> Self {
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpanStatus {
+    Ok,
+    Error(String),
+    Unset,
+}
+
+impl Span {
+    pub fn new(context: TraceContext, name: String) -> Self {
+        Self {
+            context,
+            name,
+            start_time: Instant::now(),
+            end_time: None,
+            attributes: HashMap::new(),
+            events: Vec::new(),
+            status: SpanStatus::Unset,
+        }
+    }
+    
+    pub fn set_attribute(&mut self, key: String, value: String) {
+        self.attributes.insert(key, value);
+    }
+    
+    pub fn add_event(&mut self, name: String, attributes: HashMap<String, String>) {
+        self.events.push(SpanEvent {
+            name,
+            timestamp: Instant::now(),
+            attributes,
+        });
+    }
+    
+    pub fn set_status(&mut self, status: SpanStatus) {
+        self.status = status;
+    }
+    
+    pub fn finish(&mut self) {
+        self.end_time = Some(Instant::now());
+    }
+    
+    pub fn get_duration(&self) -> Option<Duration> {
+        self.end_time.map(|end| end.duration_since(self.start_time))
+    }
+    
+    pub fn create_child(&self, name: String) -> Span {
+        let child_context = TraceContext::new(
+            self.context.trace_id.clone(),
+            uuid::Uuid::new_v4().to_string(),
+        ).with_parent(self.context.span_id.clone());
+        
+        Span::new(child_context, name)
+    }
+}
+```
+
+### 追踪器实现
+
+```rust
+pub struct Tracer {
+    service_name: String,
+    spans: HashMap<String, Span>,
+    exporter: Box<dyn SpanExporter>,
+}
+
+pub trait SpanExporter {
+    async fn export(&self, spans: Vec<Span>) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+impl Tracer {
+    pub fn new(service_name: String, exporter: Box<dyn SpanExporter>) -> Self {
         Self {
             service_name,
-            collector_endpoint,
-            spans: Arc::new(RwLock::new(Vec::new())),
+            spans: HashMap::new(),
+            exporter,
         }
     }
-
-    pub fn start_span(&self, operation_name: &str, parent_span: Option<&Span>) -> Span {
-        let trace_id = parent_span
-            .map(|p| p.trace_id.clone())
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
+    
+    pub fn start_span(&mut self, name: String) -> String {
+        let trace_id = uuid::Uuid::new_v4().to_string();
+        let span_id = uuid::Uuid::new_v4().to_string();
         
-        let span_id = Uuid::new_v4().to_string();
-        let parent_span_id = parent_span.map(|p| p.span_id.clone());
-
-        Span {
-            trace_id,
-            span_id,
-            parent_span_id,
-            operation_name: operation_name.to_string(),
-            start_time: chrono::Utc::now(),
-            end_time: None,
-            tags: HashMap::new(),
-            logs: Vec::new(),
-        }
-    }
-
-    pub fn finish_span(&self, mut span: Span) {
-        span.end_time = Some(chrono::Utc::now());
+        let context = TraceContext::new(trace_id, span_id);
+        let span = Span::new(context, name);
         
-        let spans = self.spans.clone();
-        tokio::spawn(async move {
-            let mut spans = spans.write().await;
-            spans.push(span);
-        });
+        let span_key = span.context.span_id.clone();
+        self.spans.insert(span_key.clone(), span);
+        
+        span_key
     }
-
-    pub fn add_tag(&self, span: &mut Span, key: &str, value: &str) {
-        span.tags.insert(key.to_string(), value.to_string());
-    }
-
-    pub fn add_log(&self, span: &mut Span, fields: HashMap<String, String>) {
-        span.logs.push(SpanLog {
-            timestamp: chrono::Utc::now(),
-            fields,
-        });
-    }
-
-    pub async fn export_spans(&self) -> Result<(), Error> {
-        let spans = {
-            let mut spans = self.spans.write().await;
-            spans.drain(..).collect::<Vec<_>>()
-        };
-
-        if spans.is_empty() {
-            return Ok(());
+    
+    pub fn start_child_span(&mut self, parent_span_id: &str, name: String) -> String {
+        if let Some(parent_span) = self.spans.get(parent_span_id) {
+            let child_span = parent_span.create_child(name);
+            let span_key = child_span.context.span_id.clone();
+            self.spans.insert(span_key.clone(), child_span);
+            span_key
+        } else {
+            self.start_span(name)
         }
-
-        // 发送到追踪收集器
-        self.send_to_collector(spans).await?;
+    }
+    
+    pub fn finish_span(&mut self, span_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(span) = self.spans.get_mut(span_id) {
+            span.finish();
+        }
+        
         Ok(())
     }
-
-    async fn send_to_collector(&self, spans: Vec<Span>) -> Result<(), Error> {
-        let client = reqwest::Client::new();
-        let payload = serde_json::to_string(&spans)?;
+    
+    pub async fn export_spans(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let spans: Vec<Span> = self.spans.values().cloned().collect();
+        self.exporter.export(spans).await?;
         
-        let response = client
-            .post(&self.collector_endpoint)
-            .header("Content-Type", "application/json")
-            .body(payload)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Err(Error::CollectorError(format!("HTTP {}", response.status())));
-        }
-
+        // 清理已导出的跨度
+        self.spans.clear();
+        
         Ok(())
     }
 }
 ```
 
-## 🚨 告警系统
+## 📝 日志管理
 
-### 1. 告警规则引擎
+### 结构化日志
 
 ```rust
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlertRule {
-    pub id: String,
-    pub name: String,
-    pub condition: AlertCondition,
-    pub severity: AlertSeverity,
-    pub cooldown: Duration,
-    pub notification_channels: Vec<String>,
+pub struct StructuredLogger {
+    level: LogLevel,
+    formatter: Box<dyn LogFormatter>,
+    appenders: Vec<Box<dyn LogAppender>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AlertCondition {
-    CounterThreshold {
-        metric_name: String,
-        threshold: u64,
-        operator: ComparisonOperator,
-        time_window: Duration,
-    },
-    GaugeThreshold {
-        metric_name: String,
-        threshold: f64,
-        operator: ComparisonOperator,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ComparisonOperator {
-    GreaterThan,
-    LessThan,
-    GreaterThanOrEqual,
-    LessThanOrEqual,
-    Equal,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AlertSeverity {
-    Critical,
-    Warning,
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum LogLevel {
+    Trace,
+    Debug,
     Info,
+    Warn,
+    Error,
 }
 
-pub struct AlertEngine {
-    rules: HashMap<String, AlertRule>,
-    metrics: Metrics,
-    notification_service: NotificationService,
-    alert_history: AlertHistory,
+pub trait LogFormatter {
+    fn format(&self, record: &LogRecord) -> String;
 }
 
-impl AlertEngine {
-    pub fn new(metrics: Metrics, notification_service: NotificationService) -> Self {
+pub trait LogAppender {
+    async fn append(&self, record: &LogRecord) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct LogRecord {
+    pub level: LogLevel,
+    pub message: String,
+    pub timestamp: SystemTime,
+    pub target: String,
+    pub fields: HashMap<String, String>,
+    pub span_context: Option<TraceContext>,
+}
+
+impl StructuredLogger {
+    pub fn new(level: LogLevel, formatter: Box<dyn LogFormatter>) -> Self {
         Self {
-            rules: HashMap::new(),
-            metrics,
-            notification_service,
-            alert_history: AlertHistory::new(),
+            level,
+            formatter,
+            appenders: Vec::new(),
         }
     }
-
-    pub fn add_rule(&mut self, rule: AlertRule) {
-        self.rules.insert(rule.id.clone(), rule);
+    
+    pub fn add_appender(&mut self, appender: Box<dyn LogAppender>) {
+        self.appenders.push(appender);
     }
+    
+    pub async fn log(&self, level: LogLevel, message: String, fields: HashMap<String, String>) {
+        if level < self.level {
+            return;
+        }
+        
+        let record = LogRecord {
+            level,
+            message,
+            timestamp: SystemTime::now(),
+            target: "distributed".to_string(),
+            fields,
+            span_context: None,
+        };
+        
+        let formatted = self.formatter.format(&record);
+        
+        for appender in &self.appenders {
+            if let Err(e) = appender.append(&record).await {
+                eprintln!("Failed to append log: {}", e);
+            }
+        }
+    }
+    
+    pub async fn info(&self, message: String, fields: HashMap<String, String>) {
+        self.log(LogLevel::Info, message, fields).await;
+    }
+    
+    pub async fn error(&self, message: String, fields: HashMap<String, String>) {
+        self.log(LogLevel::Error, message, fields).await;
+    }
+    
+    pub async fn debug(&self, message: String, fields: HashMap<String, String>) {
+        self.log(LogLevel::Debug, message, fields).await;
+    }
+}
+```
 
-    pub async fn evaluate_rules(&self) -> Result<(), Error> {
-        for rule in self.rules.values() {
-            if self.should_evaluate_rule(rule).await {
-                match self.evaluate_condition(&rule.condition).await {
-                    Ok(true) => {
-                        self.trigger_alert(rule).await?;
+### JSON 格式化器
+
+```rust
+pub struct JsonFormatter;
+
+impl LogFormatter for JsonFormatter {
+    fn format(&self, record: &LogRecord) -> String {
+        let mut json = serde_json::Map::new();
+        
+        json.insert("timestamp".to_string(), serde_json::Value::String(
+            record.timestamp.duration_since(UNIX_EPOCH).unwrap().as_millis().to_string()
+        ));
+        json.insert("level".to_string(), serde_json::Value::String(
+            format!("{:?}", record.level)
+        ));
+        json.insert("message".to_string(), serde_json::Value::String(
+            record.message.clone()
+        ));
+        json.insert("target".to_string(), serde_json::Value::String(
+            record.target.clone()
+        ));
+        
+        // 添加字段
+        for (key, value) in &record.fields {
+            json.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+        
+        // 添加追踪上下文
+        if let Some(context) = &record.span_context {
+            json.insert("trace_id".to_string(), serde_json::Value::String(
+                context.trace_id.clone()
+            ));
+            json.insert("span_id".to_string(), serde_json::Value::String(
+                context.span_id.clone()
+            ));
+        }
+        
+        serde_json::to_string(&json).unwrap_or_default()
+    }
+}
+```
+
+## 🔍 健康检查
+
+### 健康检查器
+
+```rust
+pub struct HealthChecker {
+    checks: HashMap<String, Box<dyn HealthCheck>>,
+    check_interval: Duration,
+    timeout: Duration,
+}
+
+pub trait HealthCheck {
+    async fn check(&self) -> HealthStatus;
+    fn get_name(&self) -> &str;
+}
+
+#[derive(Debug, Clone)]
+pub struct HealthStatus {
+    pub status: HealthState,
+    pub message: String,
+    pub details: HashMap<String, String>,
+    pub timestamp: SystemTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HealthState {
+    Healthy,
+    Unhealthy,
+    Degraded,
+}
+
+impl HealthChecker {
+    pub fn new(check_interval: Duration, timeout: Duration) -> Self {
+        Self {
+            checks: HashMap::new(),
+            check_interval,
+            timeout,
+        }
+    }
+    
+    pub fn add_check(&mut self, name: String, check: Box<dyn HealthCheck>) {
+        self.checks.insert(name, check);
+    }
+    
+    pub async fn check_health(&self) -> HealthStatus {
+        let mut overall_status = HealthState::Healthy;
+        let mut details = HashMap::new();
+        let mut messages = Vec::new();
+        
+        for (name, check) in &self.checks {
+            match tokio::time::timeout(self.timeout, check.check()).await {
+                Ok(status) => {
+                    details.insert(name.clone(), format!("{:?}", status.status));
+                    
+                    match status.status {
+                        HealthState::Unhealthy => {
+                            overall_status = HealthState::Unhealthy;
+                            messages.push(format!("{}: {}", name, status.message));
+                        }
+                        HealthState::Degraded => {
+                            if overall_status == HealthState::Healthy {
+                                overall_status = HealthState::Degraded;
+                            }
+                            messages.push(format!("{}: {}", name, status.message));
+                        }
+                        HealthState::Healthy => {
+                            // 健康状态不需要特殊处理
+                        }
                     }
-                    Ok(false) => {
-                        // 条件不满足，重置告警状态
-                        self.reset_alert_state(rule).await;
-                    }
-                    Err(e) => {
-                        tracing::error!("评估告警规则失败: {}", e);
-                    }
+                }
+                Err(_) => {
+                    overall_status = HealthState::Unhealthy;
+                    details.insert(name.clone(), "timeout".to_string());
+                    messages.push(format!("{}: check timeout", name));
                 }
             }
         }
-        Ok(())
-    }
-
-    async fn should_evaluate_rule(&self, rule: &AlertRule) -> bool {
-        if let Some(last_alert) = self.alert_history.get_last_alert(&rule.id).await {
-            return last_alert.timestamp + rule.cooldown < chrono::Utc::now();
+        
+        HealthStatus {
+            status: overall_status,
+            message: messages.join("; "),
+            details,
+            timestamp: SystemTime::now(),
         }
-        true
     }
-
-    async fn evaluate_condition(&self, condition: &AlertCondition) -> Result<bool, Error> {
-        match condition {
-            AlertCondition::CounterThreshold { metric_name, threshold, operator, time_window } => {
-                let value = self.metrics.get_counter(metric_name).await
-                    .ok_or_else(|| Error::MetricNotFound(metric_name.clone()))?;
-                Ok(self.compare_values(value as f64, *threshold as f64, operator))
+    
+    pub async fn start_health_checking(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let checks = self.checks.clone();
+        let check_interval = self.check_interval;
+        let timeout = self.timeout;
+        
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(check_interval);
+            
+            loop {
+                interval.tick().await;
+                
+                for (name, check) in &checks {
+                    match tokio::time::timeout(timeout, check.check()).await {
+                        Ok(status) => {
+                            println!("Health check {}: {:?}", name, status.status);
+                        }
+                        Err(_) => {
+                            println!("Health check {}: timeout", name);
+                        }
+                    }
+                }
             }
-            AlertCondition::GaugeThreshold { metric_name, threshold, operator } => {
-                let value = self.metrics.get_gauge(metric_name).await
-                    .ok_or_else(|| Error::MetricNotFound(metric_name.clone()))?;
-                Ok(self.compare_values(value as f64, *threshold, operator))
-            }
-        }
-    }
-
-    fn compare_values(&self, value: f64, threshold: f64, operator: &ComparisonOperator) -> bool {
-        match operator {
-            ComparisonOperator::GreaterThan => value > threshold,
-            ComparisonOperator::LessThan => value < threshold,
-            ComparisonOperator::GreaterThanOrEqual => value >= threshold,
-            ComparisonOperator::LessThanOrEqual => value <= threshold,
-            ComparisonOperator::Equal => (value - threshold).abs() < f64::EPSILON,
-        }
-    }
-
-    async fn trigger_alert(&self, rule: &AlertRule) -> Result<(), Error> {
-        let alert = Alert {
-            id: Uuid::new_v4().to_string(),
-            rule_id: rule.id.clone(),
-            severity: rule.severity.clone(),
-            message: format!("告警触发: {}", rule.name),
-            timestamp: chrono::Utc::now(),
-            metadata: HashMap::new(),
-        };
-
-        // 记录告警历史
-        self.alert_history.record_alert(alert.clone()).await;
-
-        // 发送通知
-        for channel in &rule.notification_channels {
-            self.notification_service.send_alert(channel, &alert).await?;
-        }
-
-        tracing::warn!("告警触发", rule_id = %rule.id, severity = ?rule.severity);
+        });
+        
         Ok(())
     }
 }
 ```
 
-## 📈 仪表板配置
-
-### 1. Prometheus 集成
+### 具体健康检查实现
 
 ```rust
-use prometheus::{Counter, Histogram, Gauge, Registry, TextEncoder, Encoder};
-
-pub struct PrometheusMetrics {
-    pub registry: Registry,
-    pub request_counter: Counter,
-    pub request_duration: Histogram,
-    pub active_connections: Gauge,
+pub struct DatabaseHealthCheck {
+    connection_string: String,
 }
 
-impl PrometheusMetrics {
-    pub fn new() -> Result<Self, Error> {
-        let registry = Registry::new();
-        
-        let request_counter = Counter::new(
-            "http_requests_total",
-            "Total number of HTTP requests"
-        )?;
-        
-        let request_duration = Histogram::new(
-            "http_request_duration_seconds",
-            "HTTP request duration in seconds"
-        )?;
-        
-        let active_connections = Gauge::new(
-            "active_connections",
-            "Number of active connections"
-        )?;
-
-        registry.register(Box::new(request_counter.clone()))?;
-        registry.register(Box::new(request_duration.clone()))?;
-        registry.register(Box::new(active_connections.clone()))?;
-
-        Ok(Self {
-            registry,
-            request_counter,
-            request_duration,
-            active_connections,
-        })
+impl DatabaseHealthCheck {
+    pub fn new(connection_string: String) -> Self {
+        Self { connection_string }
     }
+}
 
-    pub fn record_request(&self, method: &str, endpoint: &str, status_code: u16, duration: Duration) {
-        self.request_counter
-            .with_label_values(&[method, endpoint, &status_code.to_string()])
-            .inc();
-        
-        self.request_duration
-            .with_label_values(&[method, endpoint])
-            .observe(duration.as_secs_f64());
+impl HealthCheck for DatabaseHealthCheck {
+    async fn check(&self) -> HealthStatus {
+        // 实现数据库健康检查逻辑
+        match self.ping_database().await {
+            Ok(_) => HealthStatus {
+                status: HealthState::Healthy,
+                message: "Database connection OK".to_string(),
+                details: HashMap::new(),
+                timestamp: SystemTime::now(),
+            },
+            Err(e) => HealthStatus {
+                status: HealthState::Unhealthy,
+                message: format!("Database connection failed: {}", e),
+                details: HashMap::new(),
+                timestamp: SystemTime::now(),
+            },
+        }
     }
-
-    pub fn set_active_connections(&self, count: i64) {
-        self.active_connections.set(count);
+    
+    fn get_name(&self) -> &str {
+        "database"
     }
+}
 
-    pub fn export_metrics(&self) -> Result<String, Error> {
-        let metric_families = self.registry.gather();
-        let encoder = TextEncoder::new();
-        let mut buffer = Vec::new();
-        encoder.encode(&metric_families, &mut buffer)?;
-        
-        Ok(String::from_utf8(buffer)?)
+impl DatabaseHealthCheck {
+    async fn ping_database(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // 实现数据库 ping 逻辑
+        Ok(())
     }
 }
 ```
 
-### 2. Grafana 仪表板配置
+## 🧪 测试策略
 
-```json
-{
-  "dashboard": {
-    "title": "分布式系统监控仪表板",
-    "panels": [
-      {
-        "title": "请求率",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(http_requests_total[5m])",
-            "legendFormat": "{{method}} {{endpoint}}"
-          }
-        ]
-      },
-      {
-        "title": "响应时间",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95 响应时间"
-          },
-          {
-            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P50 响应时间"
-          }
-        ]
-      },
-      {
-        "title": "错误率",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
-            "legendFormat": "错误率 (%)"
-          }
-        ]
-      }
-      ,
-      {
-        "title": "Raft 选举次数",
-        "type": "stat",
-        "targets": [
-          { "expr": "rate(raft_leader_elections_total[5m])", "legendFormat": "选举/秒" }
-        ]
-      },
-      {
-        "title": "副本落后 (ms)",
-        "type": "graph",
-        "targets": [
-          { "expr": "replica_lag_ms", "legendFormat": "{{node}}" }
-        ]
-      }
-    ]
-  }
+### 可观测性测试
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_counter_metric() {
+        let mut counter = Counter::new("test_counter".to_string(), HashMap::new());
+        
+        counter.inc();
+        counter.inc_by(5.0);
+        
+        assert_eq!(counter.get_value(), 6.0);
+    }
+    
+    #[test]
+    fn test_histogram_metric() {
+        let mut histogram = Histogram::new(
+            "test_histogram".to_string(),
+            vec![0.1, 0.5, 1.0, 5.0],
+            HashMap::new(),
+        );
+        
+        histogram.observe(0.3);
+        histogram.observe(0.7);
+        histogram.observe(2.0);
+        
+        assert_eq!(histogram.get_percentile(50.0), 0.5);
+        assert_eq!(histogram.get_percentile(90.0), 1.0);
+    }
+    
+    #[tokio::test]
+    async fn test_tracer() {
+        struct MockExporter;
+        
+        impl SpanExporter for MockExporter {
+            async fn export(&self, spans: Vec<Span>) -> Result<(), Box<dyn std::error::Error>> {
+                println!("Exported {} spans", spans.len());
+                Ok(())
+            }
+        }
+        
+        let mut tracer = Tracer::new("test_service".to_string(), Box::new(MockExporter));
+        
+        let span_id = tracer.start_span("test_operation".to_string());
+        tracer.finish_span(&span_id).unwrap();
+        
+        tracer.export_spans().await.unwrap();
+    }
+    
+    #[tokio::test]
+    async fn test_health_checker() {
+        struct MockHealthCheck {
+            name: String,
+            should_fail: bool,
+        }
+        
+        impl HealthCheck for MockHealthCheck {
+            async fn check(&self) -> HealthStatus {
+                if self.should_fail {
+                    HealthStatus {
+                        status: HealthState::Unhealthy,
+                        message: "Mock check failed".to_string(),
+                        details: HashMap::new(),
+                        timestamp: SystemTime::now(),
+                    }
+                } else {
+                    HealthStatus {
+                        status: HealthState::Healthy,
+                        message: "Mock check passed".to_string(),
+                        details: HashMap::new(),
+                        timestamp: SystemTime::now(),
+                    }
+                }
+            }
+            
+            fn get_name(&self) -> &str {
+                &self.name
+            }
+        }
+        
+        let health_checker = HealthChecker::new(Duration::from_secs(1), Duration::from_millis(100));
+        
+        let status = health_checker.check_health().await;
+        assert_eq!(status.status, HealthState::Healthy);
+    }
 }
 ```
 
-## 🔗 相关资源
+## 📚 进一步阅读
 
-- [快速开始指南](../QUICKSTART.md)
-- [系统设计最佳实践](../design/BEST_PRACTICES.md)
-- [性能优化技巧](../performance/OPTIMIZATION.md)
+- [性能优化](../performance/OPTIMIZATION.md) - 性能监控和优化
+- [测试策略](../testing/README.md) - 可观测性测试
+- [故障处理](../failure/README.md) - 故障检测和监控
+- [共识机制](../consensus/README.md) - 共识算法的可观测性
+
+## 🔗 相关文档
+
+- [性能优化](../performance/OPTIMIZATION.md)
 - [测试策略](../testing/README.md)
-- [常见陷阱与调试](../PITFALLS.md)
-
-## 🆘 获取帮助
-
-- **GitHub Issues**: [报告问题](https://github.com/your-org/c20_distributed/issues)
-- **Discussions**: [讨论交流](https://github.com/your-org/c20_distributed/discussions)
-- **Stack Overflow**: [技术问答](https://stackoverflow.com/questions/tagged/c20-distributed)
+- [故障处理](../failure/README.md)
+- [共识机制](../consensus/README.md)
+- [实验指南](../EXPERIMENT_GUIDE.md)
 
 ---
 
-**全面监控！** 🚀 建立完善的可观测性体系，确保分布式系统的稳定运行和快速故障定位。
+**文档版本**: v1.0.0  
+**最后更新**: 2025-10-15  
+**维护者**: Rust 分布式系统项目组

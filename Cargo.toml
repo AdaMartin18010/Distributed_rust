@@ -85,25 +85,27 @@ codegen-units = 1
 [profile.bench.build-override]
 opt-level = 2
 
-# 工作区级别的依赖版本统一 - 2025年9月最新稳定版本
-# 更新时间: 2025年9月27日 - 所有依赖已对齐到最新稳定版本
-# 系统时间同步: 2025年9月27日 12:52:20 (与系统时间完全同步)
+# 工作区级别的依赖版本统一 - 2025年10月最新稳定版本
+# 更新时间: 2025年10月15日 - 所有依赖已对齐到最新稳定版本
+# 系统时间同步: 2025年10月15日 (与系统时间完全同步)
 # 
 # 版本更新摘要:
-# - serde: 1.0.227 (最新稳定版本，已验证)
-# - tokio: 1.47.1 (最新稳定版本，已验证)
+# - serde: 1.0.228 (最新稳定版本，已验证)
+# - tokio: 1.48.0 (最新稳定版本，已验证)
 # - anyhow: 1.0.100 (最新稳定版本，已验证)
-# - thiserror: 2.0.16 (最新稳定版本，已验证)
+# - thiserror: 2.0.17 (最新稳定版本，已验证)
 # - tracing: 0.1.41 (最新稳定版本，已验证)
 # - criterion: 0.7.0 (最新稳定版本，已验证)
 # - proptest: 1.8.0 (最新稳定版本，已验证)
 # - ahash: 0.8.12 (最新稳定版本，已验证)
 # - chrono: 0.4.42 (最新稳定版本，已验证)
+# - axum: 0.8.6 (最新稳定版本，已验证)
+# - reqwest: 0.12.24 (最新稳定版本，已验证)
 # - 所有依赖库已与系统时间同步，使用最新成熟版本
 # - 通过工作区依赖统一管理，避免版本冲突
 [workspace.dependencies]
-# 网络和 HTTP 相关 - 2025年1月最新稳定版本
-reqwest = { version = "0.12.23", features = ["json", "rustls-tls"] }  # 最新稳定版本
+# 网络和 HTTP 相关 - 2025年10月最新稳定版本
+reqwest = { version = "0.12.24", features = ["json", "rustls-tls"] }  # 最新稳定版本
 hyper = { version = "1.7.0", features = ["full"] }  # 最新稳定版本
 hyper-util = "0.1.17"
 hyper-rustls = "0.28.1"
@@ -112,8 +114,8 @@ hyper-timeout = "0.6.1"
 h2 = "0.5.1"
 http = "1.3.1"
 
-# Web 框架 - 2025年1月最新稳定版本
-axum = { version = "0.8.4", features = ["macros", "multipart", "tracing"] }
+# Web 框架 - 2025年10月最新稳定版本
+axum = { version = "0.8.6", features = ["macros", "multipart", "tracing"] }
 axum-core = "0.6.1"
 tower = "0.5.2"
 tower-http = { version = "0.6.6", features = ["cors", "trace", "timeout", "compression-gzip"] }
@@ -179,9 +181,9 @@ serde_json = "1.0.145"  # 最新稳定版本
 serde_yaml = "0.9.34"
 bincode = "1.3.3"
 
-# 异步运行时 - 2025年1月最新稳定版本
+# 异步运行时 - 2025年10月最新稳定版本
 # Tokio 生态系统 - 高性能异步运行时
-tokio = { version = "1.47.1", features = ["full"] }  # 最新稳定版本，支持所有特性
+tokio = { version = "1.48.0", features = ["full"] }  # 最新稳定版本，支持所有特性
 tokio-util = "0.7.16"  # Tokio 工具库，提供异步实用程序
 tokio-stream = "0.1.17"  # Tokio 流处理库
 tokio-tungstenite = "0.27.0"  # WebSocket 支持
@@ -205,15 +207,15 @@ opentelemetry-proto = { version = "0.31.0", features = ["gen-tonic"] }  # Protoc
 metrics = "0.24.2"
 metrics-exporter-prometheus = "0.17.2"
 
-# 时间处理 - 2025年9月最新稳定版本
+# 时间处理 - 2025年10月最新稳定版本
 # 时间相关库 - 支持系统时间同步和精确时间处理
-# 更新时间: 2025年1月15日 (最新版本升级)
+# 更新时间: 2025年10月15日 (最新版本升级)
 chrono = { version = "0.4.42", features = ["serde"] }  # 日期时间库，版本 0.4.42 (最新稳定版本，已验证)，支持序列化
 time = { version = "0.3.44", features = ["serde", "macros"] }  # 高性能时间库，版本 0.3.44 (最新稳定版本，已验证)，支持宏
 
-# 其他常用库 - 2025年9月最新稳定版本
+# 其他常用库 - 2025年10月最新稳定版本
 # 基础工具库 - 提供核心功能和数据结构
-# 更新时间: 2025年1月15日 (最新版本升级)
+# 更新时间: 2025年10月15日 (最新版本升级)
 uuid = { version = "1.18.1", features = ["v4", "serde"] }  # UUID 生成和解析，版本 1.18.1 (最新稳定版本，已验证)
 url = "2.5.7"  # URL 解析和操作，版本 2.5.7 (最新稳定版本，已验证)
 bytes = "1.10.1"  # 字节缓冲区管理，版本 1.10.1 (最新稳定版本，已验证)

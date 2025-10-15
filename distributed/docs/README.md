@@ -1,186 +1,127 @@
-# 分布式系统总纲（c20_distributed）
+# 分布式系统文档中心
 
-本目录系统性梳理分布式系统核心主题，兼顾工程接口与理论依据，对齐主流课程与社区知识体系。
+> 基于 Rust 1.90 的分布式系统开发库完整文档
 
-## 目录与定位
+## 📚 文档导航
 
-- topology：数据分片与路由（一致性哈希、重平衡、热点治理）
-- replication：复制与放置策略（主从、多主、链式、读写分离）
-- consensus：共识与状态机复制（Raft、Paxos、EPaxos、VSR）
-- consistency：一致性模型（线性一致、顺序、因果、最终一致；CAP/PACELC）
-- storage：日志/WAL、快照与恢复（状态机持久化）
-- transport：RPC/超时/重试/幂等/背压
-- transactions：分布式事务（SAGA、TCC、幂等等价类）
-- failure：故障模型与容错（Fail-Stop、网络分区、拜占庭、FLP）
-- time：时间与时钟（NTP/PTP、Lamport/Vector、TrueTime/Spanner）
-- scheduling：限流、调度、优先级与负载治理
-- testing：分布式测试与混沌工程（Jepsen、故障注入、可重复实验）
+### 🎯 快速开始
+- [1.1 安装指南](./INSTALL.md) - 系统要求、安装步骤、配置选项
+- [1.2 快速开始](./QUICKSTART.md) - 5分钟上手分布式系统开发
+- [1.3 常见问题](./FAQ.md) - 常见问题解答和故障排查
 
-## 形式化要点与不变量（总览）
+### 🏗️ 核心概念
+- [2.1 概念模型](./CONCEPT_MODEL.md) - 分布式系统核心概念和理论模型
+- [2.2 形式化论证](./FORMAL_ARGUMENTS.md) - 数学证明和形式化验证
+- [2.3 课程对标](./COURSE_ALIGNMENT.md) - 与主流课程的知识体系对齐
 
-- 共识安全性：提交唯一性（多数派交叠）；领导者单一性（任期内最多一位）；日志前缀匹配。
-- BFT 条件：PBFT 在 n≥3f+1、证书大小≥2f+1 时保证安全；视图变更证书交叠确保决定继承。
-- 复制读写：当 R+W>N 时，读必与最近一次写交叠，可实现线性化读取；Eventual 模式下允许短暂陈旧。
-- SWIM 收敛：gossip 随机传播在期望 O(log n) 时间覆盖，incarnation 与版本确保单调更新。
-- 一致性层级：Linearizable ⊇ Sequential ⊇ Causal ⊇ Session/Monotonic ⊇ Eventual（并非严格全序）。
+### 🔧 系统组件
 
-## 能力地图（对标）
+#### 2.4 共识机制
+- [2.4.1 共识算法](./consensus/README.md) - Raft、Paxos、EPaxos 等共识算法
+- [2.4.2 领导者选举](./consensus/leader_election.md) - 选举机制和故障切换
+- [2.4.3 日志复制](./consensus/log_replication.md) - 日志同步和冲突解决
 
-1) 理论：CAP/PACELC、FLP 不可能性、时钟模型、共识安全性/活性
-2) 模型：一致性级别、复制语义、容错与隔离级别
-3) 工程：路由/放置、日志/快照、RPC/重试/幂等、监控与回滚
-4) 验证：单元/属性测试、仿真、Jepsen、故障注入与回归
+#### 2.5 一致性模型
+- [2.5.1 一致性级别](./consistency/README.md) - 线性、顺序、因果、最终一致性
+- [2.5.2 CAP/PACELC](./consistency/cap_pacelc.md) - 一致性、可用性、分区容错权衡
+- [2.5.3 向量时钟](./consistency/vector_clocks.md) - 因果依赖跟踪
 
-## 学习路线（参考课程）
+#### 2.6 复制与存储
+- [2.6.1 复制策略](./replication/README.md) - 主从、多主、链式复制
+- [2.6.2 存储抽象](./storage/README.md) - WAL、快照、状态机
+- [2.6.3 数据分片](./topology/README.md) - 一致性哈希、负载均衡
 
-- MIT 6.824 分布式系统
-- Stanford CS244B Distributed Systems
-- CMU 15-440/15-749、Berkeley CS262A
-- EPFL Distributed Systems、UWash CSE452
+#### 2.7 事务处理
+- [2.7.1 分布式事务](./transactions/README.md) - SAGA、TCC、2PC 模式
+- [2.7.2 补偿机制](./transactions/compensation.md) - 事务回滚和补偿策略
+- [2.7.3 幂等性](./transactions/idempotency.md) - 幂等操作和重复处理
 
-## 维基与进一步阅读
+#### 2.8 故障处理
+- [2.8.1 故障模型](./failure/README.md) - Fail-Stop、拜占庭、网络分区
+- [2.8.2 故障检测](./membership/README.md) - SWIM、Gossip 协议
+- [2.8.3 容错机制](./failure/fault_tolerance.md) - 容错策略和恢复
 
-- Wikipedia：CAP、Consensus、Paxos、Raft、Causal consistency、Vector clock
-- Papers：Raft, Paxos, EPaxos, Spanner/TrueTime, Dynamo, Cassandra, FaRM
+#### 2.9 时间与调度
+- [2.9.1 时间模型](./time/README.md) - 物理时钟、逻辑时钟、TrueTime
+- [2.9.2 调度策略](./scheduling/README.md) - 限流、背压、优先级
+- [2.9.3 网络传输](./transport/README.md) - RPC、超时、重试、幂等
 
-> 关键参考（精选）：
-> - Raft: Ongaro & Ousterhout (2014)；Paxos: Lamport (1998)；EPaxos: Moraru et al. (2013)
-> - PBFT: Castro & Liskov (1999)；CAP: Gilbert & Lynch (2002)；PACELC: Daniel Abadi (2012)
-> - Dynamo (2007)、Cassandra (2010)；SWIM (2002)；Jepsen Methodology
+### 🧪 测试与实验
+- [3.1 实验指南](./EXPERIMENT_GUIDE.md) - 实验设计和执行指南
+- [3.2 实验清单](./experiments/CHECKLIST.md) - 详细实验检查清单
+- [3.3 测试策略](./testing/README.md) - 单元测试、集成测试、混沌工程
+- [3.4 性能基准](./performance/OPTIMIZATION.md) - 性能测试和优化
 
-各专题文档末尾提供具体参考与实现接口对照表。
+### 📊 可观测性
+- [4.1 监控指标](./observability/README.md) - 指标收集、告警、SLO
+- [4.2 分布式追踪](./observability/tracing.md) - 链路追踪和性能分析
+- [4.3 日志管理](./observability/logging.md) - 结构化日志和日志聚合
 
-## 🔗 快速导航
+### 🎨 设计指南
+- [5.1 最佳实践](./design/BEST_PRACTICES.md) - 系统设计最佳实践
+- [5.2 常见陷阱](./PITFALLS.md) - 常见错误和避免方法
+- [5.3 风格规范](./STYLE_GUIDE.md) - 代码和文档风格规范
 
-- 模型理论：`../../formal_rust/language/18_model/01_model_theory.md`
-- AI系统：`../c19_ai/docs/FAQ.md`
-- WebAssembly：`../../formal_rust/language/16_webassembly/FAQ.md`
-- IoT系统：`../../formal_rust/language/17_iot/FAQ.md`
-- 区块链：`../../formal_rust/language/15_blockchain/FAQ.md`
+### 🚀 开发指南
+- [6.1 贡献指南](../../CONTRIBUTING.md) - 如何参与项目开发
+- [6.2 路线图](./ROADMAP.md) - 项目发展规划和里程碑
+- [6.3 示例代码](./examples/README.md) - 完整示例和用例
 
-## 分布式系统（Rust 1.89 对齐）
+## 🎯 学习路径
 
-- 课程参考：MIT 6.824/6.5840、CMU 15-440/15-418、Stanford CS244B、Berkeley CS262A
-- 主题导航：一致性与分区、共识、成员管理、复制、事务、调度、容错、监控
+### 初学者路径
+1. [安装指南](./INSTALL.md) → [快速开始](./QUICKSTART.md) → [概念模型](./CONCEPT_MODEL.md)
+2. [一致性模型](./consistency/README.md) → [复制策略](./replication/README.md) → [事务处理](./transactions/README.md)
 
-## 子目录
+### 进阶路径
+1. [共识算法](./consensus/README.md) → [故障处理](./failure/README.md) → [时间模型](./time/README.md)
+2. [实验指南](./EXPERIMENT_GUIDE.md) → [性能优化](./performance/OPTIMIZATION.md) → [可观测性](./observability/README.md)
 
-- [consensus](./consensus/) — Raft/Paxos/EPaxos，日志复制、选举、快照
-- [consistency](./consistency/) — CAP/PACELC、线性/顺序/因果/最终一致
-- [replication](./replication/) — 主从/多主、链式复制、放置与 Quorum
-- [storage](./storage/) — 状态机存储、WAL、快照与恢复
-- [transport](./transport/) — RPC/超时/重试/幂等/背压
-- [scheduling](./scheduling/) — 限流、背压、优先级与截止时间传递
-- [topology](./topology/) — Sharding、一致性哈希、重平衡与热点治理
-- [transactions](./transactions/) — SAGA/TCC/2PC、幂等与隔离级别
-- [failure](./failure/) — 故障模型（Fail-Stop/BFT）、FLP 与容错界
-- [time](./time/) — 物理/逻辑时钟、TrueTime 与外部一致性
-- [testing](./testing/) — Jepsen、仿真、故障注入与线性化检查
-- [membership](./membership/) — SWIM/Gossip、成员视图与故障探测
-- [observability](./observability/) — Tracing/Metrics/Logging 与 SLO
-- [experiments](./experiments/) — 实验与测试指引，配套 tests 的检查清单
-  - 清单：见 [experiments/CHECKLIST.md](./experiments/CHECKLIST.md)
+### 专家路径
+1. [形式化论证](./FORMAL_ARGUMENTS.md) → [课程对标](./COURSE_ALIGNMENT.md) → [最佳实践](./design/BEST_PRACTICES.md)
+2. [实验清单](./experiments/CHECKLIST.md) → [常见陷阱](./PITFALLS.md) → [贡献指南](../../CONTRIBUTING.md)
 
-## 路由与分片
+## 🔍 快速查找
 
-- 在 `partitioning` 中提供 `HashRingRouter`，基于 `topology::ConsistentHashRing` 进行键到节点映射
+### 按功能查找
+- **共识**: [Raft](./consensus/README.md) | [Paxos](./consensus/README.md) | [选举](./consensus/leader_election.md)
+- **一致性**: [线性](./consistency/README.md) | [因果](./consistency/vector_clocks.md) | [最终](./consistency/README.md)
+- **复制**: [主从](./replication/README.md) | [多主](./replication/README.md) | [链式](./replication/README.md)
+- **事务**: [SAGA](./transactions/README.md) | [TCC](./transactions/README.md) | [2PC](./transactions/README.md)
+- **故障**: [检测](./membership/README.md) | [容错](./failure/README.md) | [恢复](./failure/fault_tolerance.md)
 
-## Feature 矩阵
+### 按场景查找
+- **高可用**: [故障检测](./membership/README.md) → [容错机制](./failure/fault_tolerance.md) → [监控告警](./observability/README.md)
+- **高性能**: [负载均衡](./topology/README.md) → [缓存策略](./storage/README.md) → [性能优化](./performance/OPTIMIZATION.md)
+- **强一致**: [共识算法](./consensus/README.md) → [线性一致性](./consistency/README.md) → [事务处理](./transactions/README.md)
+- **最终一致**: [复制策略](./replication/README.md) → [反熵机制](./replication/README.md) → [冲突解决](./consistency/README.md)
 
-- `runtime-tokio`：启用基于 Tokio 的定时器/异步能力（`scheduling::TokioTimer`）。
-- `consensus-raft`：启用最小 Raft 接口与示例（`consensus_raft::*`）。
-- `consensus-paxos`：预留；未来可扩展 Multi-Paxos/EPaxos。
+## 📖 参考资源
 
-## Rust 1.89 对齐
+### 学术论文
+- **Raft**: [In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
+- **Paxos**: [The Part-Time Parliament](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf)
+- **CAP**: [Brewer's Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services](https://users.ece.cmu.edu/~adrian/731-sp04/readings/GL-cap.pdf)
+- **SWIM**: [A Scalable Weakly-consistent Infection-style Process Group Membership Protocol](https://www.cs.cornell.edu/~asdas/research/dsn02-swim.pdf)
 
-- 使用 `edition = 2024`、`rust-version = 1.89`
-- 可选特性：`runtime-tokio`、`consensus-raft`、`consensus-paxos`
-- 建议配套 crates：`tracing`、`ahash`
+### 课程资源
+- **MIT 6.824**: [Distributed Systems](https://pdos.csail.mit.edu/6.824/)
+- **CMU 15-440**: [Distributed Systems](https://www.cs.cmu.edu/~dga/15-440/)
+- **Stanford CS244B**: [Distributed Systems](https://web.stanford.edu/class/cs244b/)
 
-## 最小示例
+### 开源项目
+- **Etcd**: [分布式键值存储](https://github.com/etcd-io/etcd)
+- **Consul**: [服务发现和配置](https://github.com/hashicorp/consul)
+- **TiKV**: [分布式事务数据库](https://github.com/tikv/tikv)
 
-```rust
-use c20_distributed::{InMemoryRpcServer, InMemoryRpcClient};
+## 🆘 获取帮助
 
-let mut srv = InMemoryRpcServer::new();
-srv.register("echo", Box::new(|b| b.to_vec()));
-let cli = InMemoryRpcClient::new(srv.clone());
-let rsp = cli.call("echo", b"hi").unwrap();
-assert_eq!(rsp, b"hi");
-```
+- **GitHub Issues**: [报告问题](https://github.com/rust-lang/c20_distributed/issues)
+- **Discussions**: [讨论交流](https://github.com/rust-lang/c20_distributed/discussions)
+- **Stack Overflow**: [技术问答](https://stackoverflow.com/questions/tagged/rust-distributed-systems)
 
-启用 tokio 定时器（需要 feature `runtime-tokio`）：
+---
 
-```rust
-use c20_distributed::scheduling::{TimerService, TokioTimer};
-
-let timer = TokioTimer::default();
-timer.after_ms(10, || println!("tick"));
-```
-
-## 流水线（路由→放置→复制→幂等）
-
-```rust
-use c20_distributed::topology::ConsistentHashRing;
-use c20_distributed::replication::LocalReplicator;
-use c20_distributed::consistency::ConsistencyLevel;
-use c20_distributed::storage::InMemoryIdempotency;
-
-let mut ring = ConsistentHashRing::new(16);
-let nodes = vec!["n1".to_string(), "n2".to_string(), "n3".to_string()];
-for n in &nodes { ring.add_node(n); }
-let mut repl: LocalReplicator<String> = LocalReplicator::new(ring, nodes.clone())
-    .with_idempotency(Box::new(InMemoryIdempotency::<String>::default()));
-let id = "op-1".to_string();
-repl.replicate_idempotent(&id, &nodes, b"cmd".to_vec(), ConsistencyLevel::Quorum).unwrap();
-```
-
-## 快速开始
-
-- 运行单元测试：`cargo test -p c20_distributed`
-- 运行示例：`cargo run -p c20_distributed --example e2e_saga`
-- 查看实验说明：`docs/EXPERIMENT_GUIDE.md`
-- 查看路线图：`docs/ROADMAP.md`
-- 一键命令合集：
-  - 格式化：`cargo fmt && cargo clippy -- -D warnings`
-  - 全部测试：`cargo test --workspace --all-features -- --nocapture`
-  - 基准：`cargo bench -p c20_distributed`
-  - 常用示例：
-    - `cargo run -p c20_distributed --example e2e_replication`
-    - `cargo run -p c20_distributed --example e2e_saga`
-  - 环境建议：安装 Rust 1.89+、启用 `rust-analyzer`，Linux/macOS 优先；Windows 下建议使用 WSL2。
-
-## 如何选择一致性级别
-
-- Strong/Quorum：读写延迟更高，但可避免陈旧读；适合强一致 KV/元数据。
-- Eventual：吞吐更高、延迟更低，允许短暂陈旧；适合日志/时间序列等。
-- 建议：先以 Quorum 写 + 读多数派作为基线，再按 SLA 调整。
-
-## 常见陷阱
-
-- 见 `docs/PITFALLS.md`：多数派边界、Eventual 读旧值、一致性哈希倾斜、Saga 幂等、SWIM 参数等。
-- R/W 配置提醒：确保 `R+W>N` 满足线性读；在强一致读下避免使用旧会话缓存。
-- 租约读提醒：当时钟误差界 ε 增大或心跳异常时自动降级为多数派读。
-
-## 实验入口
-
-- 复制与一致性、Saga、哈希环、SWIM、基准：详见 `docs/EXPERIMENT_GUIDE.md`。
-
-### 形式化/验证建议
-
-- 在线性化检查中，构建操作序列与返回值映射，验证是否存在全序与顺序一致的可行映射。
-- 对共识路径添加属性测试：不变量（提交单调、任期单调、前缀匹配）在随机网络故障注入下保持成立。
-- 使用向量时钟模拟因果依赖，验证 happens-before 关系与并发检测。
-
-## 测试导航
-
-- 共识/复制：`tests/raft*.rs`, `tests/replication*`
-- 传输/重试：`tests/retry*.rs`, `tests/pipeline.rs`
-- SWIM/成员视图：`tests/swim_*.rs`, `tests/router.rs`
-
-## 练习与思考
-
-1. 设计一条“路由→放置→复制→一致性→幂等→补偿”的最小流水线，基于内存后端实现端到端一致写入，并使用属性测试验证线性化。
-2. 实现一个最小 Raft 原型：领导者选举、日志复制、快照；在 `tokio::time::timeout` 下注入网络分区和超时，评估活性与恢复时间。
-3. 基于 Merkle 树实现反熵同步，比较 Range Diff 与 Merkle Diff 的带宽与延迟差异，给出实验数据与图表。
-4. 设计 Saga 事务编排，给出可重试与幂等策略，注入失败场景验证补偿正确性与可观测性指标。
+**文档版本**: v1.0.0  
+**最后更新**: 2025-10-15  
+**维护者**: Rust 分布式系统项目组

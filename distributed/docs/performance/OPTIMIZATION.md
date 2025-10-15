@@ -1,1096 +1,799 @@
-# 性能优化技巧
+# 性能优化
 
-本文档提供了分布式系统性能优化的详细指南，包括理论分析、实践技巧和具体实现。
+> 分布式系统性能优化策略、基准测试和调优指南
 
-## 📈 基线与 SLO（与可观测性互引）
+## 目录
 
-- 指标选择：对外接口优先 RED（Rate/Error/Duration），系统资源采用 USE（Utilization/Saturation/Error）。
-- 目标设定：给出 P50/P95/P99 延迟、吞吐与错误率目标；将目标写入测试断言与告警阈值。
-- 互引：详细指标与采样/标签规范见 `../observability/README.md`；测试断言示例见 `../testing/README.md`。
+- [性能优化](#性能优化)
+  - [目录](#目录)
+  - [📋 概述](#-概述)
+  - [🎯 性能指标](#-性能指标)
+    - [关键性能指标 (KPI)](#关键性能指标-kpi)
+  - [⚡ 延迟优化](#-延迟优化)
+    - [网络延迟优化](#网络延迟优化)
+    - [缓存优化](#缓存优化)
+  - [🚀 吞吐量优化](#-吞吐量优化)
+    - [并发处理优化](#并发处理优化)
+    - [批处理优化](#批处理优化)
+  - [📊 基准测试](#-基准测试)
+    - [性能基准测试框架](#性能基准测试框架)
+    - [具体基准测试实现](#具体基准测试实现)
+  - [🔧 系统调优](#-系统调优)
+    - [配置优化](#配置优化)
+  - [🧪 测试策略](#-测试策略)
+    - [性能测试](#性能测试)
+  - [📚 进一步阅读](#-进一步阅读)
+  - [🔗 相关文档](#-相关文档)
 
-## 🎯 性能优化目标
+## 📋 概述
 
-### 关键指标
+性能优化是分布式系统设计和实现中的重要环节，涉及延迟优化、吞吐量提升、资源利用率和系统可扩展性等多个方面。
 
-- **延迟 (Latency)**: P50, P95, P99 延迟
-- **吞吐量 (Throughput)**: 每秒操作数 (OPS)
-- **资源利用率**: CPU, 内存, 网络, 磁盘
-- **错误率**: 失败请求比例
-- **可用性**: 系统正常运行时间
+## 🎯 性能指标
 
-### 性能基准
-
-```rust
-// 性能基准测试
-use criterion::{criterion_group, criterion_main, Criterion};
-
-fn benchmark_replication(c: &mut Criterion) {
-    let mut group = c.benchmark_group("replication");
-    
-    group.bench_function("quorum_write", |b| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let replicator = LocalReplicator::new(5, 3, 3);
-        
-        b.iter(|| {
-            rt.block_on(async {
-                replicator.replicate("key", "value", ConsistencyLevel::Quorum).await
-            })
-        });
-    });
-    
-    group.bench_function("strong_consistency_read", |b| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let replicator = LocalReplicator::new(5, 3, 3);
-        
-        b.iter(|| {
-            rt.block_on(async {
-                replicator.read("key", ConsistencyLevel::Strong).await
-            })
-        });
-    });
-    
-    group.finish();
-}
-
-criterion_group!(benches, benchmark_replication);
-criterion_main!(benches);
-```
-
-## 🔄 复制优化
-
-### 1. 批量复制
-
-减少网络往返次数，提高吞吐量。
+### 关键性能指标 (KPI)
 
 ```rust
-struct BatchReplicator {
-    batch_size: usize,
-    batch_timeout: Duration,
-    pending_operations: Arc<Mutex<Vec<ReplicationOperation>>>,
-    replicator: LocalReplicator,
+#[derive(Debug, Clone)]
+pub struct PerformanceMetrics {
+    // 延迟指标
+    pub latency_p50: Duration,
+    pub latency_p95: Duration,
+    pub latency_p99: Duration,
+    pub latency_p999: Duration,
+    
+    // 吞吐量指标
+    pub throughput_ops_per_sec: f64,
+    pub throughput_bytes_per_sec: f64,
+    
+    // 资源利用率
+    pub cpu_usage_percent: f64,
+    pub memory_usage_bytes: u64,
+    pub network_usage_bytes_per_sec: f64,
+    
+    // 错误率
+    pub error_rate_percent: f64,
+    pub timeout_rate_percent: f64,
+    
+    // 可用性
+    pub availability_percent: f64,
+    pub uptime_seconds: u64,
 }
 
-impl BatchReplicator {
-    async fn replicate_batch(&self, operations: Vec<ReplicationOperation>) -> Result<(), Error> {
-        // 按目标节点分组
-        let mut grouped_operations = HashMap::new();
-        
-        for op in operations {
-            for target_node in &op.target_nodes {
-                grouped_operations
-                    .entry(target_node.clone())
-                    .or_insert_with(Vec::new)
-                    .push(op.clone());
-            }
+impl PerformanceMetrics {
+    pub fn new() -> Self {
+        Self {
+            latency_p50: Duration::from_millis(0),
+            latency_p95: Duration::from_millis(0),
+            latency_p99: Duration::from_millis(0),
+            latency_p999: Duration::from_millis(0),
+            throughput_ops_per_sec: 0.0,
+            throughput_bytes_per_sec: 0.0,
+            cpu_usage_percent: 0.0,
+            memory_usage_bytes: 0,
+            network_usage_bytes_per_sec: 0.0,
+            error_rate_percent: 0.0,
+            timeout_rate_percent: 0.0,
+            availability_percent: 100.0,
+            uptime_seconds: 0,
         }
-        
-        // 并行发送到各个节点
-        let mut handles = Vec::new();
-        
-        for (target_node, ops) in grouped_operations {
-            let replicator = self.replicator.clone();
-            let handle = tokio::spawn(async move {
-                replicator.send_batch(target_node, ops).await
-            });
-            handles.push(handle);
-        }
-        
-        // 等待所有批次完成
-        for handle in handles {
-            handle.await??;
-        }
-        
-        Ok(())
     }
     
-    async fn start_batch_processor(&self) -> Result<(), Error> {
-        let mut interval = tokio::time::interval(self.batch_timeout);
-        
-        loop {
-            interval.tick().await;
-            
-            let mut pending = self.pending_operations.lock().await;
-            if !pending.is_empty() {
-                let operations = pending.drain(..).collect();
-                drop(pending);
-                
-                self.replicate_batch(operations).await?;
-            }
+    pub fn calculate_sla_compliance(&self, sla: &SLARequirements) -> SLACompliance {
+        SLACompliance {
+            latency_compliance: self.latency_p99 <= sla.max_latency_p99,
+            throughput_compliance: self.throughput_ops_per_sec >= sla.min_throughput,
+            availability_compliance: self.availability_percent >= sla.min_availability,
+            error_rate_compliance: self.error_rate_percent <= sla.max_error_rate,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct SLARequirements {
+    pub max_latency_p99: Duration,
+    pub min_throughput: f64,
+    pub min_availability: f64,
+    pub max_error_rate: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct SLACompliance {
+    pub latency_compliance: bool,
+    pub throughput_compliance: bool,
+    pub availability_compliance: bool,
+    pub error_rate_compliance: bool,
 }
 ```
 
-### 2. 异步复制
+## ⚡ 延迟优化
 
-使用异步操作提高并发性。
-
-```rust
-struct AsyncReplicator {
-    replicator: LocalReplicator,
-    completion_queue: Arc<Mutex<Vec<CompletionCallback>>>,
-}
-
-impl AsyncReplicator {
-    async fn replicate_async(&self, key: &str, value: &[u8], level: ConsistencyLevel) -> Result<(), Error> {
-        // 启动异步复制
-        let replicator = self.replicator.clone();
-        let key = key.to_string();
-        let value = value.to_vec();
-        
-        tokio::spawn(async move {
-            match replicator.replicate(&key, &value, level).await {
-                Ok(_) => {
-                    // 复制成功，调用完成回调
-                    if let Some(callback) = self.completion_queue.lock().await.pop() {
-                        callback.on_success();
-                    }
-                }
-                Err(e) => {
-                    // 复制失败，调用错误回调
-                    if let Some(callback) = self.completion_queue.lock().await.pop() {
-                        callback.on_error(e);
-                    }
-                }
-            }
-        });
-        
-        Ok(())
-    }
-}
-```
-
-### 3. 压缩优化
-
-减少网络传输数据量。
+### 网络延迟优化
 
 ```rust
-struct CompressedReplicator {
-    replicator: LocalReplicator,
-    compression_algorithm: CompressionAlgorithm,
-    compression_threshold: usize,
-}
-
-impl CompressedReplicator {
-    async fn replicate_compressed(&self, key: &str, value: &[u8], level: ConsistencyLevel) -> Result<(), Error> {
-        // 检查是否需要压缩
-        if value.len() > self.compression_threshold {
-            // 压缩数据
-            let compressed_value = self.compress(value)?;
-            
-            // 添加压缩标记
-            let mut compressed_data = Vec::new();
-            compressed_data.push(0x01); // 压缩标记
-            compressed_data.extend_from_slice(&compressed_value);
-            
-            // 复制压缩数据
-            self.replicator.replicate(key, &compressed_data, level).await?;
-        } else {
-            // 直接复制原始数据
-            let mut uncompressed_data = Vec::new();
-            uncompressed_data.push(0x00); // 未压缩标记
-            uncompressed_data.extend_from_slice(value);
-            
-            self.replicator.replicate(key, &uncompressed_data, level).await?;
-        }
-        
-        Ok(())
-    }
-    
-    fn compress(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
-        match self.compression_algorithm {
-            CompressionAlgorithm::Gzip => {
-                use flate2::write::GzEncoder;
-                use flate2::Compression;
-                
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(data)?;
-                encoder.finish().map_err(|e| Error::CompressionFailed(e))
-            }
-            CompressionAlgorithm::Lz4 => {
-                use lz4_flex::{compress, decompress};
-                
-                compress(data).map_err(|e| Error::CompressionFailed(e.into()))
-            }
-        }
-    }
-}
-```
-
-## 🗳️ 共识优化
-
-### 1. 批量日志条目
-
-减少网络往返次数。
-
-```rust
-struct BatchLogReplicator {
-    raft_node: RaftNode,
-    batch_size: usize,
-    batch_timeout: Duration,
-    pending_entries: Arc<Mutex<Vec<LogEntry>>>,
-}
-
-impl BatchLogReplicator {
-    async fn append_entries_batch(&self, entries: Vec<LogEntry>) -> Result<(), Error> {
-        // 按目标节点分组
-        let mut grouped_entries = HashMap::new();
-        
-        for entry in entries {
-            for follower in &self.raft_node.get_followers() {
-                grouped_entries
-                    .entry(follower.clone())
-                    .or_insert_with(Vec::new)
-                    .push(entry.clone());
-            }
-        }
-        
-        // 并行发送到各个跟随者
-        let mut handles = Vec::new();
-        
-        for (follower, entries) in grouped_entries {
-            let raft_node = self.raft_node.clone();
-            let handle = tokio::spawn(async move {
-                raft_node.send_append_entries(follower, entries).await
-            });
-            handles.push(handle);
-        }
-        
-        // 等待所有发送完成
-        for handle in handles {
-            handle.await??;
-        }
-        
-        Ok(())
-    }
-    
-    async fn start_batch_processor(&self) -> Result<(), Error> {
-        let mut interval = tokio::time::interval(self.batch_timeout);
-        
-        loop {
-            interval.tick().await;
-            
-            let mut pending = self.pending_entries.lock().await;
-            if !pending.is_empty() {
-                let entries = pending.drain(..).collect();
-                drop(pending);
-                
-                self.append_entries_batch(entries).await?;
-            }
-        }
-    }
-}
-```
-
-### 2. 流水线复制
-
-使用流水线技术提高吞吐量。
-
-```rust
-struct PipelineReplicator {
-    raft_node: RaftNode,
-    pipeline_depth: usize,
-    in_flight_requests: Arc<Mutex<HashMap<u64, InFlightRequest>>>,
-    next_request_id: AtomicU64,
-}
-
-impl PipelineReplicator {
-    async fn replicate_pipeline(&self, entries: Vec<LogEntry>) -> Result<(), Error> {
-        let mut handles = Vec::new();
-        
-        for entry in entries {
-            // 检查流水线深度
-            while self.in_flight_requests.lock().await.len() >= self.pipeline_depth {
-                // 等待一些请求完成
-                self.wait_for_completion().await?;
-            }
-            
-            // 发送请求
-            let request_id = self.next_request_id.fetch_add(1, Ordering::SeqCst);
-            let handle = self.send_entry_pipeline(entry, request_id).await?;
-            handles.push(handle);
-        }
-        
-        // 等待所有请求完成
-        for handle in handles {
-            handle.await??;
-        }
-        
-        Ok(())
-    }
-    
-    async fn send_entry_pipeline(&self, entry: LogEntry, request_id: u64) -> Result<JoinHandle<Result<(), Error>>, Error> {
-        let raft_node = self.raft_node.clone();
-        let in_flight_requests = self.in_flight_requests.clone();
-        
-        let handle = tokio::spawn(async move {
-            // 发送请求
-            let result = raft_node.send_append_entries_single(entry).await;
-            
-            // 从飞行中请求中移除
-            in_flight_requests.lock().await.remove(&request_id);
-            
-            result
-        });
-        
-        // 记录飞行中请求
-        self.in_flight_requests.lock().await.insert(request_id, InFlightRequest {
-            start_time: Instant::now(),
-            entry_count: 1,
-        });
-        
-        Ok(handle)
-    }
-}
-```
-
-### 3. 快照优化
-
-优化快照创建和传输。
-
-```rust
-struct OptimizedSnapshotManager {
-    storage: StorageBackend,
-    snapshot_threshold: usize,
+pub struct NetworkOptimizer {
+    connection_pool: ConnectionPool,
     compression_enabled: bool,
-    incremental_snapshots: bool,
+    batch_size: usize,
+    pipeline_depth: usize,
 }
 
-impl OptimizedSnapshotManager {
-    async fn create_snapshot(&self) -> Result<Snapshot, Error> {
-        if self.incremental_snapshots {
-            self.create_incremental_snapshot().await
+impl NetworkOptimizer {
+    pub fn new() -> Self {
+        Self {
+            connection_pool: ConnectionPool::new(100),
+            compression_enabled: true,
+            batch_size: 1000,
+            pipeline_depth: 10,
+        }
+    }
+    
+    pub async fn optimized_request(&self, request: &Request) -> Result<Response, Box<dyn std::error::Error>> {
+        // 1. 连接池复用
+        let connection = self.connection_pool.get_connection().await?;
+        
+        // 2. 请求压缩
+        let compressed_request = if self.compression_enabled {
+            self.compress_request(request)?
         } else {
-            self.create_full_snapshot().await
-        }
-    }
-    
-    async fn create_incremental_snapshot(&self) -> Result<Snapshot, Error> {
-        // 获取上次快照的元数据
-        let last_snapshot = self.storage.get_last_snapshot().await?;
-        
-        // 计算增量数据
-        let incremental_data = self.storage.get_incremental_data(
-            last_snapshot.last_applied_index
-        ).await?;
-        
-        // 创建增量快照
-        let snapshot = Snapshot {
-            last_applied_index: self.storage.get_last_applied_index().await?,
-            data: incremental_data,
-            is_incremental: true,
-            base_snapshot_id: last_snapshot.id,
+            request.clone()
         };
         
-        // 压缩快照数据
-        if self.compression_enabled {
-            snapshot.data = self.compress_snapshot_data(&snapshot.data)?;
-        }
+        // 3. 发送请求
+        let response = connection.send(compressed_request).await?;
         
-        Ok(snapshot)
-    }
-    
-    async fn create_full_snapshot(&self) -> Result<Snapshot, Error> {
-        // 创建完整快照
-        let snapshot = Snapshot {
-            last_applied_index: self.storage.get_last_applied_index().await?,
-            data: self.storage.get_all_data().await?,
-            is_incremental: false,
-            base_snapshot_id: None,
+        // 4. 响应解压缩
+        let decompressed_response = if self.compression_enabled {
+            self.decompress_response(&response)?
+        } else {
+            response
         };
         
-        // 压缩快照数据
-        if self.compression_enabled {
-            snapshot.data = self.compress_snapshot_data(&snapshot.data)?;
+        Ok(decompressed_response)
+    }
+    
+    pub async fn batch_requests(&self, requests: Vec<Request>) -> Result<Vec<Response>, Box<dyn std::error::Error>> {
+        let mut responses = Vec::new();
+        let mut batches = requests.chunks(self.batch_size);
+        
+        for batch in batches {
+            let batch_responses = self.process_batch(batch).await?;
+            responses.extend(batch_responses);
         }
         
-        Ok(snapshot)
+        Ok(responses)
+    }
+    
+    async fn process_batch(&self, batch: &[Request]) -> Result<Vec<Response>, Box<dyn std::error::Error>> {
+        let mut tasks = Vec::new();
+        
+        for request in batch {
+            let task = tokio::spawn(async move {
+                self.optimized_request(request).await
+            });
+            tasks.push(task);
+        }
+        
+        let mut responses = Vec::new();
+        for task in tasks {
+            responses.push(task.await??);
+        }
+        
+        Ok(responses)
+    }
+    
+    fn compress_request(&self, request: &Request) -> Result<Request, Box<dyn std::error::Error>> {
+        // 实现请求压缩逻辑
+        Ok(request.clone())
+    }
+    
+    fn decompress_response(&self, response: &Response) -> Result<Response, Box<dyn std::error::Error>> {
+        // 实现响应解压缩逻辑
+        Ok(response.clone())
     }
 }
 ```
 
-## 💰 事务优化
-
-### 1. 乐观并发控制
-
-减少锁竞争，提高并发性。
+### 缓存优化
 
 ```rust
-struct OptimisticConcurrencyControl {
-    version_store: VersionStore,
-    conflict_resolver: ConflictResolver,
+pub struct CacheOptimizer {
+    l1_cache: L1Cache,
+    l2_cache: L2Cache,
+    cache_policy: CachePolicy,
 }
 
-impl OptimisticConcurrencyControl {
-    async fn execute_transaction<T>(&self, transaction: T) -> Result<(), Error>
-    where
-        T: Transaction,
-    {
-        loop {
-            // 1. 读取数据版本
-            let versions = self.version_store.get_versions(&transaction.get_keys()).await?;
-            
-            // 2. 执行事务逻辑
-            let result = transaction.execute().await?;
-            
-            // 3. 尝试提交
-            match self.version_store.try_commit(&transaction.get_keys(), &versions, &result).await {
-                Ok(_) => return Ok(()),
-                Err(Error::VersionConflict) => {
-                    // 4. 解决冲突
-                    self.conflict_resolver.resolve_conflict(&transaction, &versions).await?;
-                    
-                    // 5. 重试事务
-                    continue;
-                }
-                Err(e) => return Err(e),
+#[derive(Debug, Clone)]
+pub enum CachePolicy {
+    LRU,      // 最近最少使用
+    LFU,      // 最少使用频率
+    FIFO,     // 先进先出
+    TTL,      // 生存时间
+}
+
+impl CacheOptimizer {
+    pub fn new(cache_policy: CachePolicy) -> Self {
+        Self {
+            l1_cache: L1Cache::new(1000),
+            l2_cache: L2Cache::new(10000),
+            cache_policy,
+        }
+    }
+    
+    pub async fn get(&self, key: &str) -> Option<String> {
+        // 1. 检查 L1 缓存
+        if let Some(value) = self.l1_cache.get(key) {
+            return Some(value);
+        }
+        
+        // 2. 检查 L2 缓存
+        if let Some(value) = self.l2_cache.get(key) {
+            // 提升到 L1 缓存
+            self.l1_cache.put(key, value.clone());
+            return Some(value);
+        }
+        
+        None
+    }
+    
+    pub async fn put(&self, key: &str, value: String, ttl: Option<Duration>) {
+        // 同时写入 L1 和 L2 缓存
+        self.l1_cache.put(key, value.clone());
+        self.l2_cache.put(key, value, ttl);
+    }
+    
+    pub async fn invalidate(&self, key: &str) {
+        self.l1_cache.remove(key);
+        self.l2_cache.remove(key);
+    }
+    
+    pub async fn warm_up(&self, keys: Vec<String>) {
+        // 预热缓存
+        for key in keys {
+            if let Some(value) = self.load_from_storage(&key).await {
+                self.put(&key, value, None).await;
             }
         }
     }
+    
+    async fn load_from_storage(&self, key: &str) -> Option<String> {
+        // 从存储加载数据
+        None
+    }
 }
 ```
 
-### 2. 事务批处理
+## 🚀 吞吐量优化
 
-批量处理事务，提高吞吐量。
+### 并发处理优化
 
 ```rust
-struct TransactionBatchProcessor {
+pub struct ConcurrencyOptimizer {
+    worker_pool: WorkerPool,
+    task_queue: TaskQueue,
+    max_concurrent_tasks: usize,
+}
+
+impl ConcurrencyOptimizer {
+    pub fn new(max_concurrent_tasks: usize) -> Self {
+        Self {
+            worker_pool: WorkerPool::new(max_concurrent_tasks),
+            task_queue: TaskQueue::new(),
+            max_concurrent_tasks,
+        }
+    }
+    
+    pub async fn process_tasks(&mut self, tasks: Vec<Task>) -> Result<Vec<TaskResult>, Box<dyn std::error::Error>> {
+        let mut results = Vec::new();
+        let mut task_stream = futures::stream::iter(tasks);
+        
+        // 使用信号量限制并发数
+        let semaphore = Arc::new(Semaphore::new(self.max_concurrent_tasks));
+        
+        while let Some(task) = task_stream.next().await {
+            let permit = semaphore.clone().acquire_owned().await?;
+            let worker = self.worker_pool.get_worker().await?;
+            
+            let task_result = tokio::spawn(async move {
+                let result = worker.process_task(task).await;
+                drop(permit); // 释放信号量
+                result
+            });
+            
+            results.push(task_result);
+        }
+        
+        // 等待所有任务完成
+        let mut final_results = Vec::new();
+        for result in results {
+            final_results.push(result.await??);
+        }
+        
+        Ok(final_results)
+    }
+    
+    pub async fn pipeline_processing(&self, stages: Vec<ProcessingStage>) -> Result<(), Box<dyn std::error::Error>> {
+        let mut stage_handles = Vec::new();
+        
+        for (i, stage) in stages.into_iter().enumerate() {
+                let handle = tokio::spawn(async move {
+                stage.process().await
+                });
+            stage_handles.push(handle);
+            }
+            
+        // 等待所有阶段完成
+        for handle in stage_handles {
+                handle.await??;
+        }
+        
+        Ok(())
+    }
+}
+```
+
+### 批处理优化
+
+```rust
+pub struct BatchProcessor {
     batch_size: usize,
     batch_timeout: Duration,
-    pending_transactions: Arc<Mutex<Vec<Transaction>>>,
-    transaction_executor: TransactionExecutor,
+    pending_items: Vec<BatchItem>,
+    last_batch_time: Instant,
 }
 
-impl TransactionBatchProcessor {
-    async fn process_transaction_batch(&self, transactions: Vec<Transaction>) -> Result<(), Error> {
-        // 分析事务依赖
-        let dependency_graph = self.analyze_dependencies(&transactions);
+#[derive(Debug, Clone)]
+pub struct BatchItem {
+    pub id: String,
+    pub data: Vec<u8>,
+    pub callback: oneshot::Sender<BatchResult>,
+}
+
+impl BatchProcessor {
+    pub fn new(batch_size: usize, batch_timeout: Duration) -> Self {
+        Self {
+            batch_size,
+            batch_timeout,
+            pending_items: Vec::new(),
+            last_batch_time: Instant::now(),
+        }
+    }
+    
+    pub async fn add_item(&mut self, item: BatchItem) -> Result<BatchResult, Box<dyn std::error::Error>> {
+        let (tx, rx) = oneshot::channel();
+        let mut batch_item = item;
+        batch_item.callback = tx;
         
-        // 按依赖顺序执行事务
-        let execution_order = self.topological_sort(&dependency_graph);
+        self.pending_items.push(batch_item);
         
-        // 并行执行无依赖的事务
-        let mut handles = Vec::new();
-        
-        for level in execution_order {
-            let mut level_handles = Vec::new();
-            
-            for transaction_id in level {
-                let transaction = transactions[transaction_id].clone();
-                let executor = self.transaction_executor.clone();
-                
-                let handle = tokio::spawn(async move {
-                    executor.execute(transaction).await
-                });
-                
-                level_handles.push(handle);
-            }
-            
-            // 等待当前级别的事务完成
-            for handle in level_handles {
-                handle.await??;
-            }
+        // 检查是否需要立即处理批次
+        if self.pending_items.len() >= self.batch_size {
+            self.process_batch().await?;
         }
         
+        // 等待处理结果
+        match rx.await {
+            Ok(result) => Ok(result),
+            Err(_) => Err("Batch processing failed".into()),
+        }
+    }
+    
+    pub async fn start_batch_timer(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut interval = tokio::time::interval(self.batch_timeout);
+        
+        loop {
+            interval.tick().await;
+            
+            if !self.pending_items.is_empty() {
+                self.process_batch().await?;
+            }
+        }
+    }
+    
+    async fn process_batch(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.pending_items.is_empty() {
+            return Ok(());
+        }
+        
+        let batch = std::mem::take(&mut self.pending_items);
+        let batch_results = self.process_batch_items(batch).await?;
+        
+        // 发送结果给回调
+        for (item, result) in batch_results {
+            let _ = item.callback.send(result);
+        }
+        
+        self.last_batch_time = Instant::now();
         Ok(())
     }
     
-    fn analyze_dependencies(&self, transactions: &[Transaction]) -> DependencyGraph {
-        let mut graph = DependencyGraph::new();
+    async fn process_batch_items(&self, items: Vec<BatchItem>) -> Result<Vec<(BatchItem, BatchResult)>, Box<dyn std::error::Error>> {
+        let mut results = Vec::new();
         
-        for (i, transaction) in transactions.iter().enumerate() {
-            for (j, other_transaction) in transactions.iter().enumerate() {
-                if i != j && transaction.has_conflict_with(other_transaction) {
-                    graph.add_edge(i, j);
+        for item in items {
+            let result = self.process_single_item(&item).await?;
+            results.push((item, result));
+        }
+        
+        Ok(results)
+    }
+    
+    async fn process_single_item(&self, item: &BatchItem) -> Result<BatchResult, Box<dyn std::error::Error>> {
+        // 实现单个项目处理逻辑
+        Ok(BatchResult { success: true })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BatchResult {
+    pub success: bool,
+}
+```
+
+## 📊 基准测试
+
+### 性能基准测试框架
+
+```rust
+pub struct BenchmarkRunner {
+    benchmarks: Vec<Box<dyn Benchmark>>,
+    results: Vec<BenchmarkResult>,
+}
+
+pub trait Benchmark {
+    fn get_name(&self) -> &str;
+    async fn setup(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    async fn run(&mut self, iterations: usize) -> Result<BenchmarkResult, Box<dyn std::error::Error>>;
+    async fn cleanup(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct BenchmarkResult {
+    pub name: String,
+    pub iterations: usize,
+    pub total_duration: Duration,
+    pub avg_duration: Duration,
+    pub min_duration: Duration,
+    pub max_duration: Duration,
+    pub throughput: f64,
+    pub error_count: usize,
+    pub memory_usage: u64,
+}
+
+impl BenchmarkRunner {
+    pub fn new() -> Self {
+        Self {
+            benchmarks: Vec::new(),
+            results: Vec::new(),
+        }
+    }
+    
+    pub fn add_benchmark(&mut self, benchmark: Box<dyn Benchmark>) {
+        self.benchmarks.push(benchmark);
+    }
+    
+    pub async fn run_all(&mut self, iterations: usize) -> Result<Vec<BenchmarkResult>, Box<dyn std::error::Error>> {
+        let mut results = Vec::new();
+        
+        for benchmark in &mut self.benchmarks {
+            println!("Running benchmark: {}", benchmark.get_name());
+            
+            // 设置
+            benchmark.setup().await?;
+            
+            // 运行基准测试
+            let result = benchmark.run(iterations).await?;
+            results.push(result);
+            
+            // 清理
+            benchmark.cleanup().await?;
+        }
+        
+        self.results = results.clone();
+        Ok(results)
+    }
+    
+    pub fn generate_report(&self) -> BenchmarkReport {
+        BenchmarkReport {
+            results: self.results.clone(),
+            summary: self.calculate_summary(),
+        }
+    }
+    
+    fn calculate_summary(&self) -> BenchmarkSummary {
+        let total_benchmarks = self.results.len();
+        let total_duration: Duration = self.results.iter().map(|r| r.total_duration).sum();
+        let avg_throughput: f64 = self.results.iter().map(|r| r.throughput).sum::<f64>() / total_benchmarks as f64;
+        
+        BenchmarkSummary {
+            total_benchmarks,
+            total_duration,
+            avg_throughput,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BenchmarkReport {
+    pub results: Vec<BenchmarkResult>,
+    pub summary: BenchmarkSummary,
+}
+
+#[derive(Debug, Clone)]
+pub struct BenchmarkSummary {
+    pub total_benchmarks: usize,
+    pub total_duration: Duration,
+    pub avg_throughput: f64,
+}
+```
+
+### 具体基准测试实现
+
+```rust
+pub struct LatencyBenchmark {
+    client: Box<dyn Client>,
+    request_size: usize,
+}
+
+impl LatencyBenchmark {
+    pub fn new(client: Box<dyn Client>, request_size: usize) -> Self {
+        Self {
+            client,
+            request_size,
+        }
+    }
+}
+
+impl Benchmark for LatencyBenchmark {
+    fn get_name(&self) -> &str {
+        "latency_benchmark"
+    }
+    
+    async fn setup(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // 设置基准测试环境
+        Ok(())
+    }
+    
+    async fn run(&mut self, iterations: usize) -> Result<BenchmarkResult, Box<dyn std::error::Error>> {
+        let mut durations = Vec::new();
+        let mut error_count = 0;
+        let start_time = Instant::now();
+        
+        for _ in 0..iterations {
+            let request_start = Instant::now();
+            
+            match self.client.send_request(self.create_test_request()).await {
+                Ok(_) => {
+                    let duration = request_start.elapsed();
+                    durations.push(duration);
+                }
+                Err(_) => {
+                    error_count += 1;
                 }
             }
         }
         
-        graph
-    }
-}
-```
-
-## 🔍 故障检测优化
-
-### 1. 自适应故障检测
-
-根据网络条件调整检测参数。
-
-```rust
-struct AdaptiveFailureDetector {
-    base_timeout: Duration,
-    network_quality: NetworkQualityMonitor,
-    timeout_multiplier: f64,
-}
-
-impl AdaptiveFailureDetector {
-    async fn detect_failure(&self, target: NodeId) -> Result<FailureStatus, Error> {
-        // 根据网络质量调整超时
-        let adjusted_timeout = self.calculate_adjusted_timeout().await;
+        let total_duration = start_time.elapsed();
         
-        // 执行故障检测
-        match tokio::time::timeout(adjusted_timeout, self.ping_target(target)).await {
-            Ok(result) => result,
-            Err(_) => {
-                // 超时，标记为可疑
-                Ok(FailureStatus::Suspect)
-            }
+        if durations.is_empty() {
+            return Err("No successful requests".into());
         }
-    }
-    
-    async fn calculate_adjusted_timeout(&self) -> Duration {
-        let network_quality = self.network_quality.get_current_quality().await;
         
-        let multiplier = match network_quality {
-            NetworkQuality::Excellent => 1.0,
-            NetworkQuality::Good => 1.2,
-            NetworkQuality::Fair => 1.5,
-            NetworkQuality::Poor => 2.0,
-            NetworkQuality::VeryPoor => 3.0,
+        durations.sort();
+        
+        let result = BenchmarkResult {
+            name: self.get_name().to_string(),
+            iterations,
+            total_duration,
+            avg_duration: Duration::from_nanos(
+                durations.iter().map(|d| d.as_nanos() as u64).sum::<u64>() / durations.len() as u64
+            ),
+            min_duration: durations[0],
+            max_duration: durations[durations.len() - 1],
+            throughput: iterations as f64 / total_duration.as_secs_f64(),
+            error_count,
+            memory_usage: 0, // 需要实际测量
         };
         
-        let adjusted_timeout = self.base_timeout.mul_f64(multiplier);
-        adjusted_timeout
-    }
-}
-```
-
-### 2. 预测性故障检测
-
-使用机器学习预测故障。
-
-```rust
-struct PredictiveFailureDetector {
-    ml_model: FailurePredictionModel,
-    metrics_collector: MetricsCollector,
-    prediction_threshold: f64,
-}
-
-impl PredictiveFailureDetector {
-    async fn predict_failure(&self, target: NodeId) -> Result<FailureProbability, Error> {
-        // 收集历史指标
-        let metrics = self.metrics_collector.get_metrics(target).await?;
-        
-        // 提取特征
-        let features = self.extract_features(&metrics);
-        
-        // 使用 ML 模型预测
-        let probability = self.ml_model.predict(&features)?;
-        
-        Ok(FailureProbability {
-            node_id: target,
-            probability,
-            confidence: self.ml_model.get_confidence(&features),
-        })
+        Ok(result)
     }
     
-    fn extract_features(&self, metrics: &NodeMetrics) -> Vec<f64> {
-        vec![
-            metrics.cpu_usage,
-            metrics.memory_usage,
-            metrics.network_latency,
-            metrics.response_time_p99,
-            metrics.error_rate,
-            metrics.request_rate,
-        ]
+    async fn cleanup(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // 清理基准测试环境
+        Ok(())
+    }
+}
+
+impl LatencyBenchmark {
+    fn create_test_request(&self) -> Request {
+        Request {
+            data: vec![0; self.request_size],
+        }
     }
 }
 ```
 
-## ⚖️ 负载均衡优化
+## 🔧 系统调优
 
-### 1. 动态权重调整
-
-根据节点性能动态调整权重。
+### 配置优化
 
 ```rust
-struct DynamicWeightBalancer {
-    services: Arc<Mutex<Vec<WeightedService>>>,
+pub struct SystemTuner {
+    config: SystemConfig,
     performance_monitor: PerformanceMonitor,
-    weight_update_interval: Duration,
 }
 
-impl DynamicWeightBalancer {
-    async fn start_weight_updater(&self) -> Result<(), Error> {
-        let mut interval = tokio::time::interval(self.weight_update_interval);
-        
-        loop {
-            interval.tick().await;
-            
-            // 更新服务权重
-            self.update_service_weights().await?;
+#[derive(Debug, Clone)]
+pub struct SystemConfig {
+    pub thread_pool_size: usize,
+    pub connection_pool_size: usize,
+    pub cache_size: usize,
+    pub batch_size: usize,
+    pub timeout: Duration,
+    pub retry_count: usize,
+}
+
+impl SystemTuner {
+    pub fn new() -> Self {
+        Self {
+            config: SystemConfig::default(),
+            performance_monitor: PerformanceMonitor::new(),
         }
     }
     
-    async fn update_service_weights(&self) -> Result<(), Error> {
-        let mut services = self.services.lock().await;
+    pub async fn auto_tune(&mut self) -> Result<SystemConfig, Box<dyn std::error::Error>> {
+        let mut best_config = self.config.clone();
+        let mut best_score = 0.0;
         
-        for service in services.iter_mut() {
-            // 获取性能指标
-            let metrics = self.performance_monitor.get_metrics(&service.id).await?;
+        // 生成配置组合
+        let configs = self.generate_config_combinations();
+        
+        for config in configs {
+            // 应用配置
+            self.apply_config(&config).await?;
             
-            // 计算新权重
-            let new_weight = self.calculate_weight(&metrics);
+            // 运行性能测试
+            let score = self.measure_performance().await?;
             
-            // 平滑更新权重
-            service.weight = (service.weight * 0.7) + (new_weight * 0.3);
+            if score > best_score {
+                best_score = score;
+                best_config = config;
+            }
         }
         
+        // 应用最佳配置
+        self.apply_config(&best_config).await?;
+        
+        Ok(best_config)
+    }
+    
+    fn generate_config_combinations(&self) -> Vec<SystemConfig> {
+        let mut configs = Vec::new();
+        
+        // 生成不同的配置组合
+        for thread_pool_size in [4, 8, 16, 32] {
+            for connection_pool_size in [50, 100, 200, 500] {
+                for cache_size in [1000, 5000, 10000, 50000] {
+                    for batch_size in [100, 500, 1000, 2000] {
+                        configs.push(SystemConfig {
+                            thread_pool_size,
+                            connection_pool_size,
+                            cache_size,
+                            batch_size,
+                            timeout: Duration::from_millis(100),
+                            retry_count: 3,
+                        });
+                    }
+                }
+            }
+        }
+        
+        configs
+    }
+    
+    async fn apply_config(&mut self, config: &SystemConfig) -> Result<(), Box<dyn std::error::Error>> {
+        self.config = config.clone();
+        // 应用配置到系统
         Ok(())
     }
     
-    fn calculate_weight(&self, metrics: &ServiceMetrics) -> u32 {
-        let mut weight = 100; // 基础权重
+    async fn measure_performance(&self) -> Result<f64, Box<dyn std::error::Error>> {
+        // 运行性能测试并计算分数
+        let metrics = self.performance_monitor.collect_metrics().await?;
         
-        // 根据响应时间调整
-        if metrics.avg_response_time < Duration::from_millis(100) {
-            weight += 20;
-        } else if metrics.avg_response_time > Duration::from_millis(500) {
-            weight -= 30;
-        }
+        // 计算综合性能分数
+        let score = self.calculate_performance_score(&metrics);
         
-        // 根据错误率调整
-        if metrics.error_rate < 0.01 {
-            weight += 10;
-        } else if metrics.error_rate > 0.05 {
-            weight -= 20;
-        }
+        Ok(score)
+    }
+    
+    fn calculate_performance_score(&self, metrics: &PerformanceMetrics) -> f64 {
+        // 综合延迟、吞吐量、错误率等因素计算分数
+        let latency_score = 1.0 / (metrics.latency_p99.as_millis() as f64 / 1000.0);
+        let throughput_score = metrics.throughput_ops_per_sec / 1000.0;
+        let error_score = 1.0 - (metrics.error_rate_percent / 100.0);
         
-        // 根据 CPU 使用率调整
-        if metrics.cpu_usage < 50.0 {
-            weight += 15;
-        } else if metrics.cpu_usage > 80.0 {
-            weight -= 25;
-        }
-        
-        weight.max(10).min(200) // 限制权重范围
+        (latency_score + throughput_score + error_score) / 3.0
     }
 }
 ```
 
-### 2. 智能路由
+## 🧪 测试策略
 
-根据请求特征选择最佳节点。
+### 性能测试
 
 ```rust
-struct IntelligentRouter {
-    routing_rules: Vec<RoutingRule>,
-    performance_predictor: PerformancePredictor,
-    cost_calculator: CostCalculator,
-}
-
-impl IntelligentRouter {
-    async fn route_request(&self, request: &Request) -> Result<NodeId, Error> {
-        let mut candidates = Vec::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_latency_optimization() {
+        let optimizer = NetworkOptimizer::new();
+        let request = Request { data: vec![0; 1000] };
         
-        // 应用路由规则
-        for rule in &self.routing_rules {
-            if rule.matches(request) {
-                let nodes = rule.get_candidate_nodes();
-                candidates.extend(nodes);
-            }
-        }
+        let start = Instant::now();
+        let _response = optimizer.optimized_request(&request).await.unwrap();
+        let duration = start.elapsed();
         
-        if candidates.is_empty() {
-            return Err(Error::NoAvailableNodes);
-        }
-        
-        // 预测性能
-        let mut scored_candidates = Vec::new();
-        
-        for node_id in candidates {
-            let predicted_performance = self.performance_predictor.predict(node_id, request).await?;
-            let cost = self.cost_calculator.calculate_cost(node_id, request).await?;
-            
-            let score = self.calculate_score(&predicted_performance, cost);
-            scored_candidates.push((node_id, score));
-        }
-        
-        // 选择最佳节点
-        scored_candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        
-        Ok(scored_candidates[0].0)
+        assert!(duration < Duration::from_millis(100));
     }
     
-    fn calculate_score(&self, performance: &PerformancePrediction, cost: f64) -> f64 {
-        let latency_score = 1.0 / (performance.estimated_latency.as_secs_f64() + 0.001);
-        let throughput_score = performance.estimated_throughput;
-        let reliability_score = performance.estimated_reliability;
-        let cost_score = 1.0 / (cost + 0.001);
+    #[tokio::test]
+    async fn test_throughput_optimization() {
+        let mut optimizer = ConcurrencyOptimizer::new(10);
+        let tasks = vec![Task::new("test_task"); 100];
         
-        // 加权计算总分
-        (latency_score * 0.3) + (throughput_score * 0.2) + (reliability_score * 0.3) + (cost_score * 0.2)
-    }
-}
-```
-
-## 🛡️ 安全优化
-
-### 1. 连接池安全
-
-安全地管理连接池。
-
-```rust
-struct SecureConnectionPool {
-    connections: Arc<Mutex<Vec<SecureConnection>>>,
-    max_size: usize,
-    min_size: usize,
-    connection_timeout: Duration,
-    idle_timeout: Duration,
-    encryption_manager: EncryptionManager,
-}
-
-impl SecureConnectionPool {
-    async fn get_secure_connection(&self) -> Result<SecureConnection, Error> {
-        let mut connections = self.connections.lock().await;
+        let start = Instant::now();
+        let results = optimizer.process_tasks(tasks).await.unwrap();
+        let duration = start.elapsed();
         
-        // 尝试从池中获取连接
-        if let Some(connection) = connections.pop() {
-            if connection.is_healthy() && !connection.is_expired() {
-                return Ok(connection);
-            }
-        }
-        
-        // 创建新连接
-        let connection = self.create_secure_connection().await?;
-        Ok(connection)
+        assert_eq!(results.len(), 100);
+        assert!(duration < Duration::from_secs(10));
     }
     
-    async fn create_secure_connection(&self) -> Result<SecureConnection, Error> {
-        // 建立安全连接
-        let mut connection = SecureConnection::new().await?;
+    #[tokio::test]
+    async fn test_batch_processing() {
+        let mut processor = BatchProcessor::new(10, Duration::from_millis(100));
         
-        // 执行 TLS 握手
-        connection.perform_tls_handshake().await?;
+        let mut tasks = Vec::new();
+        for i in 0..20 {
+            let item = BatchItem {
+                id: format!("item_{}", i),
+                data: vec![0; 100],
+                callback: oneshot::channel().0,
+            };
+            tasks.push(item);
+        }
         
-        // 验证证书
-        connection.verify_certificate().await?;
+        let start = Instant::now();
+        for task in tasks {
+            let _result = processor.add_item(task).await.unwrap();
+        }
+        let duration = start.elapsed();
         
-        // 设置加密
-        connection.setup_encryption(&self.encryption_manager).await?;
-        
-        Ok(connection)
+        assert!(duration < Duration::from_millis(200));
     }
 }
 ```
 
-### 2. 令牌桶优化
+## 📚 进一步阅读
 
-高效实现令牌桶算法。
+- [可观测性](./observability/README.md) - 性能监控和指标收集
+- [测试策略](./testing/README.md) - 性能测试方法
+- [故障处理](./failure/README.md) - 性能相关的故障处理
+- [实验指南](./EXPERIMENT_GUIDE.md) - 性能实验设计
 
-```rust
-struct OptimizedTokenBucket {
-    capacity: u64,
-    tokens: AtomicU64,
-    last_refill: AtomicU64,
-    refill_rate: u64,
-    refill_interval: Duration,
-}
+## 🔗 相关文档
 
-impl OptimizedTokenBucket {
-    fn new(capacity: u64, refill_rate: u64, refill_interval: Duration) -> Self {
-        Self {
-            capacity,
-            tokens: AtomicU64::new(capacity),
-            last_refill: AtomicU64::new(now()),
-            refill_rate,
-            refill_interval,
-        }
-    }
-    
-    fn try_consume(&self, tokens: u64) -> bool {
-        let now = now();
-        let last_refill = self.last_refill.load(Ordering::SeqCst);
-        
-        // 计算需要补充的令牌数
-        let elapsed = now - last_refill;
-        let refill_tokens = (elapsed * self.refill_rate) / self.refill_interval.as_nanos() as u64;
-        
-        if refill_tokens > 0 {
-            // 更新最后补充时间
-            self.last_refill.store(now, Ordering::SeqCst);
-            
-            // 补充令牌
-            let current_tokens = self.tokens.load(Ordering::SeqCst);
-            let new_tokens = (current_tokens + refill_tokens).min(self.capacity);
-            self.tokens.store(new_tokens, Ordering::SeqCst);
-        }
-        
-        // 尝试消费令牌
-        let current_tokens = self.tokens.load(Ordering::SeqCst);
-        if current_tokens >= tokens {
-            self.tokens.fetch_sub(tokens, Ordering::SeqCst);
-            true
-        } else {
-            false
-        }
-    }
-}
-
-fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64
-}
-```
-
-## 📊 监控优化
-
-### 1. 高效指标收集
-
-优化指标收集性能。
-
-```rust
-struct OptimizedMetricsCollector {
-    counters: DashMap<String, AtomicU64>,
-    histograms: DashMap<String, AtomicHistogram>,
-    gauges: DashMap<String, AtomicU64>,
-    collection_interval: Duration,
-}
-
-impl OptimizedMetricsCollector {
-    fn new(collection_interval: Duration) -> Self {
-        Self {
-            counters: DashMap::new(),
-            histograms: DashMap::new(),
-            gauges: DashMap::new(),
-            collection_interval,
-        }
-    }
-    
-    fn increment_counter(&self, name: &str, value: u64) {
-        self.counters
-            .entry(name.to_string())
-            .or_insert_with(|| AtomicU64::new(0))
-            .fetch_add(value, Ordering::SeqCst);
-    }
-    
-    fn record_histogram(&self, name: &str, value: f64) {
-        self.histograms
-            .entry(name.to_string())
-            .or_insert_with(|| AtomicHistogram::new())
-            .record(value);
-    }
-    
-    fn set_gauge(&self, name: &str, value: u64) {
-        self.gauges
-            .entry(name.to_string())
-            .or_insert_with(|| AtomicU64::new(0))
-            .store(value, Ordering::SeqCst);
-    }
-    
-    async fn start_collection(&self) -> Result<(), Error> {
-        let mut interval = tokio::time::interval(self.collection_interval);
-        
-        loop {
-            interval.tick().await;
-            
-            // 收集指标
-            let metrics = self.collect_metrics().await;
-            
-            // 导出指标
-            self.export_metrics(metrics).await?;
-        }
-    }
-    
-    async fn collect_metrics(&self) -> MetricsSnapshot {
-        let mut snapshot = MetricsSnapshot::new();
-        
-        // 收集计数器
-        for entry in self.counters.iter() {
-            let name = entry.key();
-            let value = entry.value().load(Ordering::SeqCst);
-            snapshot.add_counter(name, value);
-        }
-        
-        // 收集直方图
-        for entry in self.histograms.iter() {
-            let name = entry.key();
-            let histogram = entry.value();
-            snapshot.add_histogram(name, histogram.get_stats());
-        }
-        
-        // 收集仪表
-        for entry in self.gauges.iter() {
-            let name = entry.key();
-            let value = entry.value().load(Ordering::SeqCst);
-            snapshot.add_gauge(name, value);
-        }
-        
-        snapshot
-    }
-}
-```
-
-### 2. 智能告警
-
-减少告警噪音，提高告警质量。
-
-```rust
-struct IntelligentAlerting {
-    alert_rules: Vec<AlertRule>,
-    alert_history: AlertHistory,
-    alert_cooldown: Duration,
-    alert_aggregation: AlertAggregation,
-}
-
-impl IntelligentAlerting {
-    async fn evaluate_alerts(&self, metrics: &MetricsSnapshot) -> Result<(), Error> {
-        for rule in &self.alert_rules {
-            if rule.evaluate(metrics) {
-                // 检查告警冷却期
-                if self.is_in_cooldown(rule) {
-                    continue;
-                }
-                
-                // 检查告警聚合
-                if self.should_aggregate_alert(rule) {
-                    self.aggregate_alert(rule).await?;
-                } else {
-                    self.send_alert(rule).await?;
-                }
-                
-                // 记录告警历史
-                self.alert_history.record_alert(rule);
-            }
-        }
-        
-        Ok(())
-    }
-    
-    fn is_in_cooldown(&self, rule: &AlertRule) -> bool {
-        if let Some(last_alert) = self.alert_history.get_last_alert(rule) {
-            last_alert.timestamp + self.alert_cooldown > Instant::now()
-        } else {
-            false
-        }
-    }
-    
-    fn should_aggregate_alert(&self, rule: &AlertRule) -> bool {
-        match self.alert_aggregation {
-            AlertAggregation::None => false,
-            AlertAggregation::TimeWindow(window) => {
-                let recent_alerts = self.alert_history.get_recent_alerts(rule, window);
-                recent_alerts.len() > 1
-            }
-            AlertAggregation::CountThreshold(threshold) => {
-                let recent_alerts = self.alert_history.get_recent_alerts(rule, Duration::from_secs(60));
-                recent_alerts.len() >= threshold
-            }
-        }
-    }
-}
-```
-
-## 🚀 性能测试
-
-### 1. 压力测试
-
-```rust
-#[tokio::test]
-async fn test_replication_performance() {
-    let replicator = LocalReplicator::new(5, 3, 3);
-    let mut handles = Vec::new();
-    
-    // 启动多个并发客户端
-    for i in 0..100 {
-        let replicator = replicator.clone();
-        let handle = tokio::spawn(async move {
-            let start = Instant::now();
-            
-            for j in 0..1000 {
-                let key = format!("key_{}_{}", i, j);
-                let value = format!("value_{}_{}", i, j);
-                
-                replicator.replicate(&key, &value, ConsistencyLevel::Quorum).await.unwrap();
-            }
-            
-            start.elapsed()
-        });
-        
-        handles.push(handle);
-    }
-    
-    // 等待所有客户端完成
-    let mut total_duration = Duration::from_secs(0);
-    for handle in handles {
-        let duration = handle.await.unwrap();
-        total_duration += duration;
-    }
-    
-    // 计算性能指标
-    let avg_duration = total_duration / 100;
-    let throughput = 100000 / avg_duration.as_secs();
-    
-    println!("平均延迟: {:?}", avg_duration);
-    println!("吞吐量: {} OPS", throughput);
-    
-    // 验证性能要求
-    assert!(avg_duration < Duration::from_secs(10));
-    assert!(throughput > 10000);
-}
-```
-
-### 2. 基准测试
-
-```rust
-use criterion::{criterion_group, criterion_main, Criterion};
-
-fn benchmark_consensus(c: &mut Criterion) {
-    let mut group = c.benchmark_group("consensus");
-    
-    group.bench_function("leader_election", |b| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        
-        b.iter(|| {
-            rt.block_on(async {
-                let mut cluster = create_raft_cluster(5).await;
-                cluster.kill_leader().await;
-                cluster.wait_for_new_leader().await;
-            })
-        });
-    });
-    
-    group.bench_function("log_replication", |b| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        
-        b.iter(|| {
-            rt.block_on(async {
-                let mut cluster = create_raft_cluster(5).await;
-                
-                for i in 0..100 {
-                    cluster.propose(format!("entry_{}", i)).await;
-                }
-                
-                cluster.wait_for_consensus().await;
-            })
-        });
-    });
-    
-    group.finish();
-}
-
-criterion_group!(benches, benchmark_consensus);
-criterion_main!(benches);
-```
-
-## 🔗 相关资源
-
-- [快速开始指南](../QUICKSTART.md)
-- [系统设计最佳实践](../design/BEST_PRACTICES.md)
-- [测试策略](../testing/README.md)
-- [监控与可观测性](../observability/README.md)
-- [性能基准测试](../benchmarks/README.md)
-
-## 🆘 获取帮助
-
-- **GitHub Issues**: [报告问题](https://github.com/your-org/c20_distributed/issues)
-- **Discussions**: [讨论交流](https://github.com/your-org/c20_distributed/discussions)
-- **Stack Overflow**: [技术问答](https://stackoverflow.com/questions/tagged/c20-distributed)
+- [可观测性](./observability/README.md)
+- [测试策略](./testing/README.md)
+- [故障处理](./failure/README.md)
+- [实验指南](./EXPERIMENT_GUIDE.md)
+- [共识机制](./consensus/README.md)
 
 ---
 
-**优化性能！** 🚀 应用这些优化技巧，提升您的分布式系统性能，实现更高的吞吐量和更低的延迟。
+**文档版本**: v1.0.0  
+**最后更新**: 2025-10-15  
+**维护者**: Rust 分布式系统项目组
